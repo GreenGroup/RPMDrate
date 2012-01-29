@@ -31,10 +31,40 @@
 
 try:
     import numpy
-    from numpy.distutils.core import setup, Extension
+    from numpy.distutils.core import setup, Extension, Command
 except ImportError:
     print('The numpy package is required to install RPMD.')
     quit()
+
+################################################################################
+
+class test(Command):
+    """
+    Run the unit test suite. All files in the `tests` directory and its
+    subdirectories that match the pattern ``*test.py`` will have their unit
+    test suites executed.
+    """
+
+    description = "Run the unit test suite"
+    user_options = []
+
+    def initialize_options(self):
+        self.verbosity = 2
+
+    def finalize_options(self):
+        try:
+            self.verbosity = int(self.verbosity)
+        except ValueError:
+            raise ValueError('Verbosity must be an integer.')
+
+    def run(self):
+        import sys
+        if sys.version.startswith('2.6') or sys.version.startswith('3.1'):
+            import unittest2 as unittest
+        else:
+            import unittest
+        suite = unittest.TestLoader().discover('tests', pattern='*test.py', top_level_dir='.')
+        unittest.TextTestRunner(verbosity=self.verbosity).run(suite)
 
 ################################################################################
 
@@ -49,6 +79,7 @@ setup(
     author_email = 'rpmd_dev@mit.edu',
     url = 'http://github.com/GreenGroup/RPMD',
     packages = ['rpmd'],
+    cmdclass = {'test': test},
     ext_modules = ext_modules,
     requires = ['numpy (>=1.5.0)'],
     provides = ['rpmd'],
