@@ -3,3 +3,6 @@
 #   File patterns for git to ignore
 #
 ################################################################################
+
+# Temporary build files
+build/*
