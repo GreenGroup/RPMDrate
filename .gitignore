@@ -4,5 +4,11 @@
 #
 ################################################################################
 
+# Compiled Python modules
+*.pyc
+*.pyo
+*.pyd
+*.so
+
 # Temporary build files
 build/*
