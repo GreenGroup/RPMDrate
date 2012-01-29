@@ -12,3 +12,8 @@
 
 # Temporary build files
 build/*
+
+# Eclipse project files
+.project
+.pydevproject
+.settings/*
