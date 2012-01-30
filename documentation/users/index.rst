@@ -7,3 +7,4 @@ RPMD User's Guide
     :numbered:
     
     introduction
+    installation
