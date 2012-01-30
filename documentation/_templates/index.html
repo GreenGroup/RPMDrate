@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+{% set title = 'RPMD' %}
+
+{% block body %}
+
+  {% block relbar %}{% endblock %}
+
+  <div class="titlebanner">
+    <img src="{{ pathto('_static/rpmd-logo-large.png', 1) }}" alt="RPMD" />
+  </div>
+
+  <p style="margin-top: 0px; padding-top: 12px">
+    <strong>RPMD</strong> is a free, open-source software package for using
+    ring polymer molecular dynamics simulations to compute dynamic properties of
+    chemical systems, including, but not limited to, chemical reaction rates.
+  </p>
+
+  <p><strong>Parts of the documentation:</strong></p>
+  
+  <table class="contentstable" align="center" style="margin-left: 30px"><tr>
+    <td width="100%">
+      <p class="biglink"><a class="biglink" href="{{ pathto("users/index") }}">RPMD User's Guide</a><br/>
+         <span class="linkdescr">Using RPMD</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("theory/index") }}">RPMD Theory Guide</a><br/>
+         <span class="linkdescr">The details of the RPMD theory</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("developers/index") }}">RPMD Developer's Guide</a><br/>
+         <span class="linkdescr">For those who wish to develop for RPMD</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("faq/index") }}">FAQs</a><br/>
+         <span class="linkdescr">Frequently-asked questions (with answers!)</span></p>
+    </td></tr>
+  </table>
+
+  <p><strong>Indices and tables:</strong></p>
+  
+  <table class="contentstable" align="center" style="margin-left: 30px"><tr>
+    <td width="100%">
+      <p class="biglink"><a class="biglink" href="{{ pathto("contents") }}">Contents</a><br/>
+         <span class="linkdescr">A complete overview</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("search") }}">Search</a><br/>
+         <span class="linkdescr">Search the documentation</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("genindex") }}">General Index</a><br/>
+         <span class="linkdescr">All functions, classes, terms</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("modindex") }}">Module Index</a><br/>
+         <span class="linkdescr">All documented modules</span></p>
+    </td></tr>
+  </table>
+  
+{% endblock %}
