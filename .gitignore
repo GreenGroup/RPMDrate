@@ -13,6 +13,9 @@
 # Temporary build files
 build/*
 
+# Compiled documentation
+documentation/_build/*
+
 # Eclipse project files
 .project
 .pydevproject
