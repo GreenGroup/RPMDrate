@@ -175,5 +175,80 @@ class TestTransitionState(unittest.TestCase):
 
 ################################################################################
 
+class TestReactants(unittest.TestCase):
+    """
+    Contains unit tests of the :class:`Reactants` class.
+    """
+    
+    def setUp(self):
+        """
+        A function run before each unit test in this class.
+        """
+        self.reactants = Reactants(
+            mass = numpy.array([1.007825, 1.007825, 1.007825]),
+            reactant1Atoms = [1],
+            reactant2Atoms = [2,3],
+            Rinf = 5,
+        )
+        self.position = numpy.array([
+            [ 0.02,  0.04,  -0.929764], 
+            [ -0.03,  0.01,  0.07], 
+            [ 0.05,  0.0000,  0.929764], 
+        ]).T / 0.52918
+    
+    def test_value(self):
+        """
+        Test the Reactants.value() method for a geometry.
+        """
+        self.assertAlmostEqual(self.reactants.value(self.position), 6.74608, 4)
+
+    def test_gradient(self):
+        """
+        Test the Reactants.gradient() method by comparing it to the
+        numerical gradient.
+        """
+        dx = 0.0001
+        
+        ds0 = self.reactants.gradient(self.position)
+        for i in range(3):
+            for j in range(3):
+                position = self.position.copy()
+                position[i,j] += dx
+                s0_high = self.reactants.value(position)
+                position[i,j] -= 2 * dx
+                s0_low = self.reactants.value(position)
+
+                ds0_exp = (s0_high - s0_low) / (2 * dx)
+                ds0_act = ds0[i,j]
+                self.assertAlmostEqual(ds0_exp / ds0_act, 1.0, 6, '{0} != {1}'.format(ds0_exp, ds0_act))
+
+    def test_hessian(self):
+        """
+        Test the Reactants.hessian() method by comparing it to the
+        numerical Hessian.
+        """
+        dx = 0.002; dy = 0.001
+        
+        d2s0 = self.reactants.hessian(self.position)
+        for a in range(3):
+            for b in range(3):
+                for c in range(3):
+                    for d in range(3):
+                        position = self.position.copy()
+                        position[a,b] += dx; position[c,d] += dy
+                        s0_hh = self.reactants.value(position)
+                        position[c,d] -= 2 * dy
+                        s0_hl= self.reactants.value(position)
+                        position[a,b] -= 2 * dx
+                        s0_ll = self.reactants.value(position)
+                        position[c,d] += 2 * dy
+                        s0_lh = self.reactants.value(position)
+                        
+                        d2s0_exp = (s0_hh - s0_hl - s0_lh + s0_ll) / (4 * dx * dy)
+                        d2s0_act = d2s0[a,b,c,d]
+                        self.assertAlmostEqual(d2s0_exp / d2s0_act, 1.0, 4, '{0} != {1}'.format(d2s0_exp, d2s0_act))
+
+################################################################################
+
 if __name__ == '__main__':
     unittest.main(testRunner=unittest.TextTestRunner(verbosity=2))
