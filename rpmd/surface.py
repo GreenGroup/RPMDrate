@@ -135,3 +135,83 @@ class TransitionState:
         """
         self.activate()
         return transition_state.hessian(position)
+
+################################################################################
+
+class Reactants:
+    """
+    A dividing surface for a set of bimolecular reactants, characterized by
+    a distance at which the interaction of the reactant molecules becomes
+    negligible. The attributes are:
+    
+    ======================= ====================================================
+    Attribute               Description
+    ======================= ====================================================
+    `mass`                  The masses of the atoms in the molecular system
+    `reactant1Atoms`        A list of the indices of the atoms in the first reactant molecule
+    `reactant2Atoms`        A list of the indices of the atoms in the second reactant molecule
+    `Rinf`                  The distance at which the reactant molecule interaction becomes negligible
+    ----------------------- ----------------------------------------------------
+    `totalMass1`            The total mass of the first reactant molecule
+    `totalMass2`            The total mass of the second reactant molecule
+    `massFractions`         The mass fraction of each atom in its reactant
+    ======================= ====================================================
+    
+    The `totalMass1, `totalMass2`, and `massFractions` attributes are
+    automatically computed from the other attributes.
+    """
+    
+    def __init__(self, mass, reactant1Atoms, reactant2Atoms, Rinf):
+        self.mass = mass * 0.001 / constants.Na / 9.1093826e-31
+        self.reactant1Atoms = numpy.array(reactant1Atoms, numpy.int)
+        self.reactant2Atoms = numpy.array(reactant2Atoms, numpy.int)
+        self.Rinf = Rinf / 0.52918
+
+        self.totalMass1 = sum([self.mass[j-1] for j in self.reactant1Atoms])
+        self.totalMass2 = sum([self.mass[j-1] for j in self.reactant2Atoms])
+        
+        self.massFractions = numpy.empty_like(self.mass)
+        for j in self.reactant1Atoms:
+            self.massFractions[j-1] = self.mass[j-1] / self.totalMass1
+        for j in self.reactant2Atoms:
+            self.massFractions[j-1] = self.mass[j-1] / self.totalMass2
+    
+    def activate(self):
+        """
+        Set this object as the active bimolecular reactants dividing surface in
+        the Fortran layer.
+        """
+        Natoms = self.massFractions.shape[0]
+        Nreactant1_atoms = self.reactant1Atoms.shape[0]
+        Nreactant2_atoms = self.reactant2Atoms.shape[0]
+        
+        reactants.rinf = self.Rinf
+        reactants.massfrac[0:Natoms] = self.massFractions
+        reactants.nreactant1_atoms = Nreactant1_atoms
+        reactants.reactant1_atoms[0:Nreactant1_atoms] = self.reactant1Atoms
+        reactants.nreactant2_atoms = Nreactant2_atoms
+        reactants.reactant2_atoms[0:Nreactant2_atoms] = self.reactant2Atoms
+
+    def value(self, position):
+        """
+        Return the value of the dividing surface function at the given
+        `position`.
+        """
+        self.activate()
+        return reactants.value(position)
+
+    def gradient(self, position):
+        """
+        Return the gradient of the dividing surface function at the given
+        `position`.
+        """
+        self.activate()
+        return reactants.gradient(position)
+    
+    def hessian(self, position):
+        """
+        Return the Hessian of the dividing surface function at the given
+        `position`.
+        """
+        self.activate()
+        return reactants.hessian(position)
