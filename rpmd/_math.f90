@@ -92,3 +92,70 @@ subroutine randomn(rn)
     end if
 
 end subroutine randomn
+
+! Compute the real fast Fourier transform of the given array of data.
+! Parameters:
+!   x - The array of data to transform
+!   N - The length of the array of data
+! Returns:
+!   x - The transformed array of data, in half-complex form
+subroutine rfft(x,N)
+
+    implicit none
+    integer, intent(in) :: N
+    double precision, intent(inout) :: x(N)
+
+    integer, parameter :: Nmax = 1024
+    integer :: Np, plan
+    double precision :: copy(Nmax), factor
+
+    data Np /0/
+    save copy, factor, plan, Np
+
+    if (N .ne. Np) then
+        if (Np .ne. 0) call dfftw_destroy_plan(plan)
+        call dfftw_plan_r2r_1d(plan,N,copy,copy,0,64)
+        factor = dsqrt(1.d0/N)
+        Np = N
+    end if
+
+    copy(1:N) = x
+    call dfftw_execute(plan)
+    x = factor * copy(1:N)
+
+end subroutine rfft
+
+! Compute the inverse real fast Fourier transform of the given array of data.
+! Parameters:
+!   x - The array of data to transform, in half-complex form
+!   N - The length of the array of data
+! Returns:
+!   x - The transformed array of data
+subroutine irfft(x,N)
+
+    implicit none
+    integer, intent(in) :: N
+    double precision, intent(inout) :: x(N)
+
+    integer, parameter :: Nmax = 1024
+    integer :: Np, plan
+    double precision :: copy(Nmax), factor
+
+    data Np /0/
+    save copy, factor, plan, Np
+
+    if (N .ne. Np) then
+        ! The input array is a different length than the last array, so we
+        ! must generate a new FFTW plan for the transform
+        ! First delete the previous plan
+        if (Np .ne. 0) call dfftw_destroy_plan(plan)
+        call dfftw_plan_r2r_1d(plan,N,copy,copy,1,64)
+        factor = dsqrt(1.d0/N)
+        Np = N
+    end if
+
+    copy(1:N) = x
+    call dfftw_execute(plan)
+    x = factor * copy(1:N)
+
+end subroutine irfft
