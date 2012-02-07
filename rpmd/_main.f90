@@ -34,6 +34,7 @@ module system
     double precision :: dt
     double precision :: beta
     double precision :: mass(MAX_ATOMS)
+    integer :: mode
     double precision :: pi = dacos(-1.0d0)
 
 contains
@@ -46,25 +47,37 @@ contains
     !   q - The position of each bead in each atom
     !   V - The potential of each bead
     !   dVdq - The force exerted on each bead in each atom
+    !   xi - The value of the reaction coordinate
+    !   dxi - The gradient of the reaction coordinate
+    !   d2xi - The Hessian of the reaction coordinate
     !   Natoms - The number of atoms in the molecular system
     !   Nbeads - The number of beads to use per atom
+    !   xi_current - The current centroid value of the reaction coordinate
     !   potential - A function that evaluates the potential and force for a given position
+    !   reactants_surface - A function that evaluates the value, gradient, and Hessian of the reactants dividing surface
+    !   transition_state_surface - A function that evaluates the value, gradient, and Hessian of the transition state dividing surface
     ! Returns:
     !   t - The updated simulation time
     !   p - The updated momentum of each bead in each atom
     !   q - The updated position of each bead in each atom
     !   V - The updated potential of each bead
     !   dVdq - The updated force exerted on each bead in each atom
+    !   xi - The updated value of the reaction coordinate
+    !   dxi - The updated gradient of the reaction coordinate
+    !   d2xi - The updated Hessian of the reaction coordinate
     !   result - A flag that indicates if the time step completed successfully (if zero) or that an error occurred (if nonzero)
-    subroutine verlet_step(t, p, q, V, dVdq, Natoms, Nbeads, potential, result)
+    subroutine verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, xi_current, potential, result)
 
         implicit none
-        external potential
+        external potential, reactants_surface, transition_state_surface
         integer, intent(in) :: Natoms, Nbeads
         double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
         double precision, intent(inout) :: V(Nbeads), dVdq(3,Natoms,Nbeads)
+        double precision, intent(inout) :: xi, dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
+        double precision, intent(in) :: xi_current
         integer, intent(out) :: result
 
+        double precision :: centroid(3,Natoms)
         integer :: i, j
 
         result = 0
@@ -88,6 +101,10 @@ contains
             ! and from normal mode space
             call free_ring_polymer_step(p, q, Natoms, Nbeads)
         end if
+
+        ! Update reaction coordinate value, gradient, and Hessian
+        call get_centroid(q, Natoms, Nbeads, centroid)
+        call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
 
         ! Update potential and forces using new position
         call potential(q, V, dVdq, Natoms, Nbeads)
@@ -180,6 +197,79 @@ contains
         end do
 
     end subroutine free_ring_polymer_step
+
+    ! Compute the value, gradient, and Hessian of the reaction coordinate.
+    ! Parameters:
+    !   centroid - The centroid of each atom
+    !   Natoms - The number of atoms in the molecular system
+    ! Returns:
+    !   xi - The value of the reaction coordinate
+    !   dxi - The gradient of the reaction coordinate
+    !   d2xi - The Hessian of the reaction coordinate
+    subroutine get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
+
+        use reactants, only: reactants_value => value, &
+            reactants_gradient => gradient, &
+            reactants_hessian => hessian
+        use transition_state, only: transition_state_value => value, &
+            transition_state_gradient => gradient, &
+            transition_state_hessian => hessian
+
+        implicit none
+        integer, intent(in) :: Natoms
+        double precision, intent(in) :: centroid(3,Natoms)
+        double precision, intent(in) :: xi_current
+        double precision, intent(out) :: xi, dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
+
+        double precision :: s0, ds0(3,Natoms), d2s0(3,Natoms,3,Natoms)
+        double precision :: s1, ds1(3,Natoms), d2s1(3,Natoms,3,Natoms)
+        integer :: i1, i2, j1, j2
+
+        xi = 0.0d0
+        dxi(:,:) = 0.0d0
+        d2xi(:,:,:,:) = 0.0d0
+
+        ! Evaluate reactants dividing surface value, gradient, and Hessian
+        call reactants_value(centroid, Natoms, s0)
+        call reactants_gradient(centroid, Natoms, ds0)
+        call reactants_hessian(centroid, Natoms, d2s0)
+
+        ! Evaluate transition state dividing surface value, gradient, and Hessian
+        call transition_state_value(centroid, Natoms, s1)
+        call transition_state_gradient(centroid, Natoms, ds1)
+        call transition_state_hessian(centroid, Natoms, d2s1)
+
+        ! Compute reaction coordinate value, gradient, and Hessian
+        ! The functional form is different depending on the type of RPMD
+        ! calculation we are performing
+        if (mode .eq. 1) then
+            ! Umbrella integration
+            xi = s0 / (s0 - s1)
+            dxi = (s0 * ds1 - s1 * ds0) / ((s0 - s1) * (s0 - s1))
+            do i1 = 1, 3
+                do j1 = 1, Natoms
+                    do i2 = 1, 3
+                        do j2 = 1, Natoms
+                            d2xi(i1,j1,i2,j2) = ((s0 * d2s1(i1,j1,i2,j2) + ds0(i2,j2) * ds1(i1,j1) &
+                                - ds1(i2,j2) * ds0(i1,j1) - s1 * d2s0(i1,j1,i2,j2)) * (s0 - s1) &
+                                - 2.0d0 * (s0 * ds1(i1,j1) - s1 * ds0(i1,j1)) &
+                                * (ds0(i2,j2) - ds1(i2,j2))) &
+                                / ((s0 - s1) * (s0 - s1) * (s0 - s1))
+                        end do
+                    end do
+                end do
+            end do
+        elseif (mode .eq. 2) then
+            ! Recrossing factor
+            xi = xi_current * s1 + (1 - xi_current) * s0
+            dxi = xi_current * ds1 + (1 - xi_current) * ds0
+            d2xi = xi_current * d2s1 + (1 - xi_current) * d2s0
+        else
+            write (*,fmt='(A,I3,A)') 'Invalid mode ', mode, ' encountered in get_reaction_coordinate().'
+            stop
+        end if
+
+    end subroutine get_reaction_coordinate
 
     ! Compute the total energy of all ring polymers in the RPMD system.
     ! Parameters:
