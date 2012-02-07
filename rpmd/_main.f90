@@ -38,6 +38,149 @@ module system
 
 contains
 
+    ! Advance the simluation by one time step using the velocity Verlet
+    ! algorithm.
+    ! Parameters:
+    !   t - The current simulation time
+    !   p - The momentum of each bead in each atom
+    !   q - The position of each bead in each atom
+    !   V - The potential of each bead
+    !   dVdq - The force exerted on each bead in each atom
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    !   potential - A function that evaluates the potential and force for a given position
+    ! Returns:
+    !   t - The updated simulation time
+    !   p - The updated momentum of each bead in each atom
+    !   q - The updated position of each bead in each atom
+    !   V - The updated potential of each bead
+    !   dVdq - The updated force exerted on each bead in each atom
+    !   result - A flag that indicates if the time step completed successfully (if zero) or that an error occurred (if nonzero)
+    subroutine verlet_step(t, p, q, V, dVdq, Natoms, Nbeads, potential, result)
+
+        implicit none
+        external potential
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
+        double precision, intent(inout) :: V(Nbeads), dVdq(3,Natoms,Nbeads)
+        integer, intent(out) :: result
+
+        integer :: i, j
+
+        result = 0
+
+        ! Update momentum (half time step)
+        p = p - 0.5d0 * dt * dVdq
+
+        ! Update position (full time step)
+        if (Nbeads .eq. 1) then
+            ! For a single bead, there are no free ring polymer terms to add,
+            ! so we simply update the positions using the momentum, as in
+            ! classical trajectories
+            do i = 1, 3
+                do j = 1, Natoms
+                    q(i,j,1) = q(i,j,1) + p(i,j,1) * dt / mass(j)
+                end do
+            end do
+        else
+            ! For multiple beads, we update the positions and momenta for the
+            ! harmonic free ring term in the Hamiltonian by transforming to
+            ! and from normal mode space
+            call free_ring_polymer_step(p, q, Natoms, Nbeads)
+        end if
+
+        ! Update potential and forces using new position
+        call potential(q, V, dVdq, Natoms, Nbeads)
+
+        ! Update momentum (half time step)
+        p = p - 0.5d0 * dt * dVdq
+
+        ! Update time
+        t = t + dt
+
+    end subroutine verlet_step
+
+    ! Update the positions and momenta of each atom in each free ring polymer
+    ! bead for the term in the Hamiltonian describing the harmonic free ring
+    ! polymer interactions. This is most efficiently done in normal mode space;
+    ! this function therefore uses fast Fourier transforms (from the FFTW3
+    ! library) to transform to and from normal mode space.
+    ! Parameters:
+    !   p - The momentum of each bead in each atom
+    !   q - The position of each bead in each atom
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    ! Returns:
+    !   p - The updated momentum of each bead in each atom
+    !   q - The updated position of each bead in each atom
+    subroutine free_ring_polymer_step(p, q, Natoms, Nbeads)
+
+        implicit none
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(inout) :: p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
+
+        double precision :: poly(4,Nbeads)
+        double precision :: beta_n, twown, pi_n, wk, wt, wm, cos_wt, sin_wt, p_new
+        integer :: i, j, k
+
+        ! Transform to normal mode space
+        do i = 1, 3
+            do j = 1, Natoms
+                call rfft(p(i,j,:), Nbeads)
+                call rfft(q(i,j,:), Nbeads)
+            end do
+        end do
+
+        do j = 1, Natoms
+
+            poly(1,1) = 1.0d0
+            poly(2,1) = 0.0d0
+            poly(3,1) = dt / mass(j)
+            poly(4,1) = 1.0d0
+
+            if (Nbeads .gt. 1) then
+                beta_n = beta / Nbeads
+                twown = 2.0d0 / beta_n
+                pi_n = pi / Nbeads
+                do k = 1, Nbeads / 2
+                    wk = twown * dsin(k * pi_n)
+                    wt = wk * dt
+                    wm = wk * mass(j)
+                    cos_wt = dcos(wt)
+                    sin_wt = dsin(wt)
+                    poly(1,k+1) = cos_wt
+                    poly(2,k+1) = -wm*sin_wt
+                    poly(3,k+1) = sin_wt/wm
+                    poly(4,k+1) = cos_wt
+                end do
+                do k = 1, (Nbeads - 1) / 2
+                    poly(1,Nbeads-k+1) = poly(1,k+1)
+                    poly(2,Nbeads-k+1) = poly(2,k+1)
+                    poly(3,Nbeads-k+1) = poly(3,k+1)
+                    poly(4,Nbeads-k+1) = poly(4,k+1)
+                end do
+            end if
+
+            do k = 1, Nbeads
+                do i = 1, 3
+                    p_new = p(i,j,k) * poly(1,k) + q(i,j,k) * poly(2,k)
+                    q(i,j,k) = p(i,j,k) * poly(3,k) + q(i,j,k) * poly(4,k)
+                    p(i,j,k) = p_new
+                end do
+            end do
+
+        end do
+
+        ! Transform back to Cartesian space
+        do i = 1, 3
+            do j = 1, Natoms
+                call irfft(p(i,j,:), Nbeads)
+                call irfft(q(i,j,:), Nbeads)
+            end do
+        end do
+
+    end subroutine free_ring_polymer_step
+
     ! Compute the total energy of all ring polymers in the RPMD system.
     ! Parameters:
     !   q - The position of each bead in each atom
