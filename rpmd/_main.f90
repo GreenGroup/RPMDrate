@@ -54,8 +54,7 @@ contains
     !   Nbeads - The number of beads to use per atom
     !   xi_current - The current centroid value of the reaction coordinate
     !   potential - A function that evaluates the potential and force for a given position
-    !   reactants_surface - A function that evaluates the value, gradient, and Hessian of the reactants dividing surface
-    !   transition_state_surface - A function that evaluates the value, gradient, and Hessian of the transition state dividing surface
+    !   constrain - 1 to constrain to the transition state dividing surface, 0 otherwise
     ! Returns:
     !   t - The updated simulation time
     !   p - The updated momentum of each bead in each atom
@@ -66,7 +65,8 @@ contains
     !   dxi - The updated gradient of the reaction coordinate
     !   d2xi - The updated Hessian of the reaction coordinate
     !   result - A flag that indicates if the time step completed successfully (if zero) or that an error occurred (if nonzero)
-    subroutine verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, xi_current, potential, result)
+    subroutine verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
+        xi_current, potential, constrain, result)
 
         implicit none
         external potential, reactants_surface, transition_state_surface
@@ -75,6 +75,7 @@ contains
         double precision, intent(inout) :: V(Nbeads), dVdq(3,Natoms,Nbeads)
         double precision, intent(inout) :: xi, dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
         double precision, intent(in) :: xi_current
+        integer, intent(in) :: constrain
         integer, intent(out) :: result
 
         double precision :: centroid(3,Natoms)
@@ -102,6 +103,10 @@ contains
             call free_ring_polymer_step(p, q, Natoms, Nbeads)
         end if
 
+        ! If constrain is on, the evolution will be constrained to the
+        ! transition state dividing surface
+        if (constrain .eq. 1) call constrain_to_dividing_surface(p, q, dxi, Natoms, Nbeads, xi_current)
+
         ! Update reaction coordinate value, gradient, and Hessian
         call get_centroid(q, Natoms, Nbeads, centroid)
         call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
@@ -111,6 +116,9 @@ contains
 
         ! Update momentum (half time step)
         p = p - 0.5d0 * dt * dVdq
+
+        ! Constrain momentum again
+        if (constrain .eq. 1) call constrain_momentum_to_dividing_surface(p, dxi, Natoms, Nbeads)
 
         ! Update time
         t = t + dt
@@ -197,6 +205,137 @@ contains
         end do
 
     end subroutine free_ring_polymer_step
+
+    ! Constrain the position and the momentum to the dividing surface, using the
+    ! SHAKE/RATTLE algorithm.
+    ! Parameters:
+    !   p - The momentum of each bead in each atom
+    !   q - The position of each bead in each atom
+    !   dxi - The gradient of the reaction coordinate
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    ! Returns:
+    !   p - The constrained momentum of each bead in each atom
+    !   q - The constrained position of each bead in each atom
+    subroutine constrain_to_dividing_surface(p, q, dxi, Natoms, Nbeads, xi_current)
+
+        implicit none
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(inout) :: p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
+        double precision, intent(inout) :: dxi(3,Natoms)
+        double precision, intent(in) :: xi_current
+
+        double precision :: centroid(3,Natoms), qctemp(3,Natoms)
+        integer :: i, j, k, maxiter, iter
+        double precision :: xi_new, dxi_new(3,Natoms), d2xi_new(3,Natoms,3,Natoms)
+        double precision :: mult, sigma, dsigma, dx, coeff
+
+        call get_centroid(q, Natoms, Nbeads, centroid)
+
+        ! The Lagrange multiplier for the constraint
+        mult = 0.0d0
+
+        qctemp(:,:) = 0.0d0
+
+        maxiter = 100
+        do iter = 1, maxiter
+
+            coeff = mult * dt * dt / Nbeads
+
+            do i = 1, 3
+                do j = 1, Natoms
+                    qctemp(i,j) = centroid(i,j) + coeff * dxi(i,j) / mass(j)
+                end do
+            end do
+
+            call get_reaction_coordinate(qctemp, Natoms, xi_current, xi_new, dxi_new, d2xi_new)
+
+            sigma = xi_new
+            dsigma = 0.0d0
+            do i = 1, 3
+                do j = 1, Natoms
+                    dsigma = dsigma + dxi_new(i,j) * dt * dt * dxi(i,j) / (mass(j) * Nbeads)
+                end do
+            end do
+
+            dx = sigma / dsigma
+            mult = mult - dx
+            if (dabs(dx) .lt. 1.0d-8 .or. dabs(sigma) .lt. 1.0d-10) exit
+
+            if (iter .eq. maxiter) then
+                write (*,fmt='(A)') 'Warning: SHAKE exceeded maximum number of iterations.'
+                write (*,fmt='(A,E13.5,A,E13.5)') 'dx = ', dx, ', sigma = ', sigma
+            end if
+
+        end do
+
+        do i = 1, 3
+            do j = 1, Natoms
+                do k = 1, Nbeads
+                    q(i,j,k) = q(i,j,k) + coeff / mass(j) * dxi(i,j)
+                    p(i,j,k) = p(i,j,k) + mult * dt / Nbeads * dxi(i,j)
+                end do
+            end do
+        end do
+
+    end subroutine constrain_to_dividing_surface
+
+    ! Constrain the momentum to the reaction coordinate, to ensure that the time
+    ! derivative of the dividing surface is zero.
+    ! Parameters:
+    !   p - The momentum of each bead in each atom
+    !   dxi - The gradient of the reaction coordinate
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    ! Returns:
+    !   p - The constrained momentum of each bead in each atom
+    subroutine constrain_momentum_to_dividing_surface(p, dxi, Natoms, Nbeads)
+
+        implicit none
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(in) :: dxi(3,Natoms)
+        double precision, intent(inout) :: p(3,Natoms,Nbeads)
+
+        double precision :: coeff1, coeff2, lambda
+        integer :: i, j, k
+
+        coeff1 = 0.0d0
+        do i = 1, 3
+            do j = 1, Natoms
+                do k = 1, Nbeads
+                    coeff1 = coeff1 + dxi(i,j) * p(i,j,k) / mass(j)
+                end do
+            end do
+        end do
+
+        coeff2 = 0.0d0
+        do i = 1, 3
+            do j = 1, Natoms
+                coeff2 = coeff2 + dxi(i,j) * dxi(i,j) / mass(j)
+            end do
+        end do
+
+        lambda = -coeff1 / coeff2 / Nbeads
+        do i = 1, 3
+            do j = 1, Natoms
+                do k = 1, Nbeads
+                    p(i,j,k) = p(i,j,k) + lambda * dxi(i,j)
+                end do
+            end do
+        end do
+
+        ! DEBUG: Check that constraint is correct: coeff1 should now evaluate to
+        ! zero within numerical precision
+        !coeff1 = 0.0d0
+        !do i = 1, 3
+        !    do j = 1, Natoms
+        !        do k = 1, Nbeads
+        !            coeff1 = coeff1 + dxi(i,j) * p(i,j,k) / mass(j)
+        !        end do
+        !    end do
+        !end do
+
+    end subroutine constrain_momentum_to_dividing_surface
 
     ! Compute the value, gradient, and Hessian of the reaction coordinate.
     ! Parameters:
