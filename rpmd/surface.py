@@ -95,7 +95,7 @@ class TransitionState:
                 R = math.sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
                 self.breakingBondLengths[n,m] = R
 
-    def activate(self):
+    def activate(self, module=None):
         """
         Set this object as the active transition state dividing surface in the
         Fortran layer.
@@ -104,13 +104,15 @@ class TransitionState:
         Nforming_bonds = self.formingBonds.shape[1]
         Nbreaking_bonds = self.breakingBonds.shape[1]
 
-        transition_state.number_of_transition_states = Nts
-        transition_state.number_of_forming_bonds = Nforming_bonds
-        transition_state.forming_bonds[0:Nts,0:Nforming_bonds,:] = self.formingBonds
-        transition_state.forming_bond_lengths[0:Nts,0:Nforming_bonds] = self.formingBondLengths
-        transition_state.number_of_breaking_bonds = Nbreaking_bonds
-        transition_state.breaking_bonds[0:Nts,0:Nbreaking_bonds,:] = self.breakingBonds
-        transition_state.breaking_bond_lengths[0:Nts,0:Nbreaking_bonds] = self.breakingBondLengths
+        if module is None: module = transition_state
+
+        module.number_of_transition_states = Nts
+        module.number_of_forming_bonds = Nforming_bonds
+        module.forming_bonds[0:Nts,0:Nforming_bonds,:] = self.formingBonds
+        module.forming_bond_lengths[0:Nts,0:Nforming_bonds] = self.formingBondLengths
+        module.number_of_breaking_bonds = Nbreaking_bonds
+        module.breaking_bonds[0:Nts,0:Nbreaking_bonds,:] = self.breakingBonds
+        module.breaking_bond_lengths[0:Nts,0:Nbreaking_bonds] = self.breakingBondLengths
     
     def value(self, position):
         """
@@ -176,7 +178,7 @@ class Reactants:
         for j in self.reactant2Atoms:
             self.massFractions[j-1] = self.mass[j-1] / self.totalMass2
     
-    def activate(self):
+    def activate(self, module=None):
         """
         Set this object as the active bimolecular reactants dividing surface in
         the Fortran layer.
@@ -185,12 +187,14 @@ class Reactants:
         Nreactant1_atoms = self.reactant1Atoms.shape[0]
         Nreactant2_atoms = self.reactant2Atoms.shape[0]
         
-        reactants.rinf = self.Rinf
-        reactants.massfrac[0:Natoms] = self.massFractions
-        reactants.nreactant1_atoms = Nreactant1_atoms
-        reactants.reactant1_atoms[0:Nreactant1_atoms] = self.reactant1Atoms
-        reactants.nreactant2_atoms = Nreactant2_atoms
-        reactants.reactant2_atoms[0:Nreactant2_atoms] = self.reactant2Atoms
+        if module is None: module = reactants
+        
+        module.rinf = self.Rinf
+        module.massfrac[0:Natoms] = self.massFractions
+        module.nreactant1_atoms = Nreactant1_atoms
+        module.reactant1_atoms[0:Nreactant1_atoms] = self.reactant1Atoms
+        module.nreactant2_atoms = Nreactant2_atoms
+        module.reactant2_atoms[0:Nreactant2_atoms] = self.reactant2Atoms
 
     def value(self, position):
         """
