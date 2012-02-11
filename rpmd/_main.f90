@@ -39,6 +39,60 @@ module system
 
 contains
 
+    ! Allow an RPMD trajectory to equilibrate in the presence of an Andersen
+    ! thermostat, with option to constrain the trajectory to the transition
+    ! state dividing surface.
+    ! Parameters:
+    !   t - The initial time
+    !   p - The initial momentum of each bead in each atom
+    !   q - The initial position of each bead in each atom
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    !   steps - The number of time steps to take in this trajectory
+    !   xi_current - The current centroid value of the reaction coordinate
+    !   potential - A function that evaluates the potential and force for a given position
+    !   constrain - 1 to constrain to dividing surface, 0 otherwise
+    ! Returns:
+    !   result - 0 if the trajectory evolution was successful, nonzero if unsuccessful
+    subroutine equilibrate(t, p, q, Natoms, Nbeads, steps, &
+        xi_current, potential, constrain, result)
+
+        implicit none
+
+        external potential
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
+        integer, intent(in) :: steps
+        double precision, intent(in) :: xi_current
+        integer, intent(in) :: constrain
+        integer, intent(out) :: result
+
+        double precision :: V(Nbeads), dVdq(3,Natoms,Nbeads)
+        double precision :: xi, dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
+        double precision :: centroid(3,Natoms)
+        double precision :: threq, rn
+        integer :: step
+
+        result = 0
+
+        threq = 1.0d0 / dsqrt(dble(steps))
+
+        call get_centroid(q, Natoms, Nbeads, centroid)
+        call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
+        call potential(q, V, dVdq, Natoms, Nbeads)
+
+        do step = 1, steps
+            call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
+                xi_current, potential, constrain, result)
+            if (result .ne. 0) exit
+
+            call random(rn)
+            if (rn .lt. threq) call sample_momentum(p, mass, beta, Natoms, Nbeads)
+
+        end do
+
+    end subroutine equilibrate
+
     ! Advance the simluation by one time step using the velocity Verlet
     ! algorithm.
     ! Parameters:
@@ -409,6 +463,38 @@ contains
         end if
 
     end subroutine get_reaction_coordinate
+
+    ! Return a pseudo-random sampling of momenta from a Boltzmann distribution at
+    ! the temperature of interest.
+    ! Parameters:
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    ! Returns:
+    !   p - The sampled momentum of each bead in each atom
+    subroutine sample_momentum(p, mass, beta, Natoms, Nbeads)
+
+        implicit none
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(in) :: mass(Natoms)
+        double precision, intent(in) :: beta
+        double precision, intent(out) :: p(3,Natoms,Nbeads)
+
+        double precision :: beta_n, dp(Natoms)
+        integer :: i, j, k
+
+        beta_n = beta / Nbeads
+        dp = sqrt(mass / beta_n)
+
+        do i = 1, 3
+            do j = 1, Natoms
+                do k = 1, Nbeads
+                    call randomn(p(i,j,k))
+                    p(i,j,k) = p(i,j,k) * dp(j)
+                end do
+            end do
+        end do
+
+    end subroutine sample_momentum
 
     ! Compute the total energy of all ring polymers in the RPMD system.
     ! Parameters:
