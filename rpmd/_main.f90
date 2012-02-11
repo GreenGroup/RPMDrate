@@ -93,6 +93,58 @@ contains
 
     end subroutine equilibrate
 
+    ! Conduct a simulation of a RPMD trajectory to update the value of the
+    ! recrossing factor.
+    ! Parameters:
+    !   t - The initial time
+    !   p - The initial momentum of each bead in each atom
+    !   q - The initial position of each bead in each atom
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    !   steps - The number of time steps to take in this trajectory
+    !   xi_current - The current centroid value of the reaction coordinate
+    !   potential - A function that evaluates the potential and force for a given position
+    !   kappa_num - The numerator of the recrossing factor expression
+    !   kappa_denom - The denominator of the recrossing factor expression
+    ! Returns:
+    !   result - 0 if the trajectory evolution was successful, nonzero if unsuccessful
+    subroutine recrossing_trajectory(t, p, q, Natoms, Nbeads, steps, &
+        xi_current, potential, kappa_num, kappa_denom, result)
+
+        implicit none
+
+        external potential
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
+        integer, intent(in) :: steps
+        double precision, intent(in) :: xi_current
+        double precision, intent(inout) :: kappa_num(steps), kappa_denom
+        integer, intent(out) :: result
+
+        double precision :: V(Nbeads), dVdq(3,Natoms,Nbeads)
+        double precision :: xi, dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
+        double precision :: centroid(3,Natoms), vs, fs
+        integer :: step
+
+        result = 0
+
+        call get_centroid(q, Natoms, Nbeads, centroid)
+        call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
+        call potential(q, V, dVdq, Natoms, Nbeads)
+
+        call get_recrossing_velocity(p, dxi, Natoms, Nbeads, vs)
+        call get_recrossing_flux(dxi, Natoms, fs)
+        if (vs .gt. 0) kappa_denom = kappa_denom + vs / fs
+
+        do step = 1, steps
+            call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
+                xi_current, potential, 0, result)
+            if (result .ne. 0) exit
+            if (xi .gt. 0) kappa_num(step) = kappa_num(step) + vs / fs
+        end do
+
+    end subroutine recrossing_trajectory
+
     ! Advance the simluation by one time step using the velocity Verlet
     ! algorithm.
     ! Parameters:
@@ -463,6 +515,61 @@ contains
         end if
 
     end subroutine get_reaction_coordinate
+
+    ! Return the flux used to compute the recrossing factor.
+    ! Parameters:
+    !   dxi - The gradient of the reaction coordinate
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    ! Returns:
+    !   fs - The flux used to compute the recrossing factor
+    subroutine get_recrossing_flux(dxi, Natoms, fs)
+
+        implicit none
+        integer, intent(in) :: Natoms
+        double precision, intent(in) :: dxi(3,Natoms)
+        double precision, intent(out) :: fs
+
+        integer :: i, j
+
+        fs = 0.0d0
+        do i = 1, 3
+            do j = 1, Natoms
+                fs = fs + dxi(i,j) * dxi(i,j) / mass(j)
+            end do
+        end do
+        fs = sqrt(fs / (2.0d0 * pi * beta))
+
+    end subroutine get_recrossing_flux
+
+    ! Return the velocity used to compute the recrossing factor.
+    ! Parameters:
+    !   p - The momentum of each bead in each atom
+    !   dxi - The gradient of the reaction coordinate
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    ! Returns:
+    !   vs - The velocity used to compute the recrossing factor
+    subroutine get_recrossing_velocity(p, dxi, Natoms, Nbeads, vs)
+
+        implicit none
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(in) :: p(3,Natoms,Nbeads), dxi(3,Natoms)
+        double precision, intent(out) :: vs
+
+        integer :: i, j, k
+
+        vs = 0.0d0
+        do i = 1, 3
+            do j = 1, Natoms
+                do k = 1, Nbeads
+                    vs = vs + dxi(i,j) * p(i,j,k) / mass(j)
+                end do
+            end do
+        end do
+        vs = vs / Nbeads
+
+    end subroutine get_recrossing_velocity
 
     ! Return a pseudo-random sampling of momenta from a Boltzmann distribution at
     ! the temperature of interest.
