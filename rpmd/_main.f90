@@ -52,10 +52,11 @@ contains
     !   xi_current - The current centroid value of the reaction coordinate
     !   potential - A function that evaluates the potential and force for a given position
     !   constrain - 1 to constrain to dividing surface, 0 otherwise
+    !   save_trajectory - 1 to save the trajectory to disk for visualization (slow!), 0 otherwise
     ! Returns:
     !   result - 0 if the trajectory evolution was successful, nonzero if unsuccessful
     subroutine equilibrate(t, p, q, Natoms, Nbeads, steps, &
-        xi_current, potential, constrain, result)
+        xi_current, potential, constrain, save_trajectory, result)
 
         implicit none
 
@@ -64,7 +65,7 @@ contains
         double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
         integer, intent(in) :: steps
         double precision, intent(in) :: xi_current
-        integer, intent(in) :: constrain
+        integer, intent(in) :: constrain, save_trajectory
         integer, intent(out) :: result
 
         double precision :: V(Nbeads), dVdq(3,Natoms,Nbeads)
@@ -77,6 +78,11 @@ contains
 
         threq = 1.0d0 / dsqrt(dble(steps))
 
+        if (save_trajectory .eq. 1) then
+            open(unit=77,file='equilibrate.xyz')
+            open(unit=88,file='equilibrate_centroid.xyz')
+        end if
+
         call get_centroid(q, Natoms, Nbeads, centroid)
         call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
         call potential(q, V, dVdq, Natoms, Nbeads)
@@ -85,11 +91,17 @@ contains
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
                 xi_current, potential, constrain, result)
             if (result .ne. 0) exit
+            if (save_trajectory .eq. 1) call update_vmd_output(q, Natoms, Nbeads, 77, 88)
 
             call random(rn)
             if (rn .lt. threq) call sample_momentum(p, mass, beta, Natoms, Nbeads)
 
         end do
+
+        if (save_trajectory .eq. 1) then
+            close(unit=77)
+            close(unit=88)
+        end if
 
     end subroutine equilibrate
 
@@ -104,12 +116,13 @@ contains
     !   steps - The number of time steps to take in this trajectory
     !   xi_current - The current centroid value of the reaction coordinate
     !   potential - A function that evaluates the potential and force for a given position
+    !   save_trajectory - 1 to save the trajectory to disk for visualization (slow!), 0 otherwise
     !   kappa_num - The numerator of the recrossing factor expression
     !   kappa_denom - The denominator of the recrossing factor expression
     ! Returns:
     !   result - 0 if the trajectory evolution was successful, nonzero if unsuccessful
     subroutine recrossing_trajectory(t, p, q, Natoms, Nbeads, steps, &
-        xi_current, potential, kappa_num, kappa_denom, result)
+        xi_current, potential, save_trajectory, kappa_num, kappa_denom, result)
 
         implicit none
 
@@ -119,6 +132,7 @@ contains
         integer, intent(in) :: steps
         double precision, intent(in) :: xi_current
         double precision, intent(inout) :: kappa_num(steps), kappa_denom
+        integer, intent(in) :: save_trajectory
         integer, intent(out) :: result
 
         double precision :: V(Nbeads), dVdq(3,Natoms,Nbeads)
@@ -127,6 +141,11 @@ contains
         integer :: step
 
         result = 0
+
+        if (save_trajectory .eq. 1) then
+            open(unit=777,file='child.xyz')
+            open(unit=888,file='child_centroid.xyz')
+        end if
 
         call get_centroid(q, Natoms, Nbeads, centroid)
         call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
@@ -140,8 +159,14 @@ contains
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
                 xi_current, potential, 0, result)
             if (result .ne. 0) exit
+            if (save_trajectory .eq. 1) call update_vmd_output(q, Natoms, Nbeads, 777, 888)
             if (xi .gt. 0) kappa_num(step) = kappa_num(step) + vs / fs
         end do
+
+        if (save_trajectory .eq. 1) then
+            close(unit=777)
+            close(unit=888)
+        end if
 
     end subroutine recrossing_trajectory
 
@@ -754,5 +779,40 @@ contains
         end do
 
     end subroutine get_radius_of_gyration
+
+    ! Write the given position to a pair of VMD output files: one for all beads and
+    ! one for the centroid.
+    ! Parameters:
+    !   q - The position of each bead in each atom
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    !   beads_file_number - The output file number to save all beads to
+    !   centroid_file_number - The output file number to save the centroids to
+    subroutine update_vmd_output(q, Natoms, Nbeads, beads_file_number, centroid_file_number)
+
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(in) :: q(3,Natoms,Nbeads)
+        integer, intent(in) :: beads_file_number, centroid_file_number
+        integer :: j, k
+
+        double precision :: centroid(3,Natoms)
+
+        call get_centroid(q, Natoms, Nbeads, centroid)
+
+        write(beads_file_number,fmt='(I6)') Natoms * Nbeads
+        write(beads_file_number,fmt='(A)')
+        do j = 1, Natoms
+            do k = 1, Nbeads
+                write(beads_file_number,fmt='(I4,3F11.6)') j, q(1,j,k), q(2,j,k), q(3,j,k)
+            end do
+        end do
+
+        write(centroid_file_number,fmt='(I6)') Natoms
+        write(centroid_file_number,fmt='(A)')
+        do j = 1, Natoms
+            write(centroid_file_number,fmt='(I4,3F11.6)') j, centroid(1,j), centroid(2,j), centroid(3,j)
+        end do
+
+    end subroutine
 
 end module system

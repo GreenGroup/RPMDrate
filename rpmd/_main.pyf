@@ -21,7 +21,7 @@ python module _main ! in
             integer, parameter,optional :: max_atoms=100
             double precision :: dt
             double precision, optional :: pi=dacos(-1.0d0)
-            subroutine equilibrate(t,p,q,natoms,nbeads,steps,xi_current,potential,constrain,result) ! in :_main:rpmd/_main.f90:system
+            subroutine equilibrate(t,p,q,natoms,nbeads,steps,xi_current,potential,constrain,save_trajectory,result) ! in :_main:rpmd/_main.f90:system
                 use _main__user__routines
                 double precision intent(inout) :: t
                 double precision dimension(3,natoms,nbeads),intent(inout) :: p
@@ -32,9 +32,10 @@ python module _main ! in
                 double precision intent(in) :: xi_current
                 external potential
                 integer intent(in) :: constrain
+                integer intent(in) :: save_trajectory
                 integer intent(out) :: result
             end subroutine equilibrate
-            subroutine recrossing_trajectory(t,p,q,natoms,nbeads,steps,xi_current,potential,kappa_num,kappa_denom,result) ! in :_main:rpmd/_main.f90:system
+            subroutine recrossing_trajectory(t,p,q,natoms,nbeads,steps,xi_current,potential,save_trajectory,kappa_num,kappa_denom,result) ! in :_main:rpmd/_main.f90:system
                 use _main__user__routines
                 double precision intent(inout) :: t
                 double precision dimension(3,natoms,nbeads),intent(inout) :: p
@@ -44,6 +45,7 @@ python module _main ! in
                 integer, optional,intent(in),check(len(kappa_num)>=steps),depend(kappa_num) :: steps=len(kappa_num)
                 double precision intent(in) :: xi_current
                 external potential
+                integer intent(in) :: save_trajectory
                 double precision dimension(steps),intent(inout) :: kappa_num
                 double precision intent(inout) :: kappa_denom
                 integer intent(out) :: result
@@ -144,6 +146,13 @@ python module _main ! in
                 integer, optional,intent(in),check(shape(q,2)==nbeads),depend(q) :: nbeads=shape(q,2)
                 double precision dimension(natoms),intent(out),depend(natoms) :: r
             end subroutine get_radius_of_gyration
+            subroutine update_vmd_output(q,natoms,nbeads,beads_file_number,centroid_file_number) ! in :_main:rpmd/_main.f90:system
+                double precision dimension(3,natoms,nbeads),intent(in) :: q
+                integer, optional,intent(in),check(shape(q,1)==natoms),depend(q) :: natoms=shape(q,1)
+                integer, optional,intent(in),check(shape(q,2)==nbeads),depend(q) :: nbeads=shape(q,2)
+                integer intent(in) :: beads_file_number
+                integer intent(in) :: centroid_file_number
+            end subroutine update_vmd_output
         end module system
         module transition_state ! in :_main:rpmd/_surface.f90
             integer, parameter,optional :: max_ts=16
