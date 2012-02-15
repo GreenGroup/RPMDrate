@@ -105,6 +105,163 @@ class RPMD:
         self.reactants.activate(module=reactants)
         self.transitionState.activate(module=transition_state)
     
+    def computeTransmissionCoefficient(self, T, Nbeads, dt, 
+                                       equilibrationTime,
+                                       xi_current,
+                                       parentEvolutionTime,
+                                       childrenPerSampling,
+                                       childEvolutionTime,
+                                       childSamplingTime,
+                                       saveParentTrajectory=False, 
+                                       saveChildTrajectories=False):
+        """
+        Return the transmission coefficient by the recrossing method. In this
+        approach, a constrained RPMD simulation is initiated in the presence of
+        an Andersen thermostat to generate a series of independent 
+        configurations with centroids on the transition state dividing surface
+        :math:`\\bar{s}_1(\\mathbf{q}) = 0`. For each of these "parent"
+        configurations, a set of "child" trajectories is spawned by sampling
+        from a Maxwell-Boltzmann distribution, with each trajectory evolving
+        in time without the dividing surface constraint or Andersen thermostat.
+        The transmission coefficient is then computed via
+        
+        .. math::
+        
+            \\kappa^{(n)}(s_1) = \\lim_{t \\rightarrow \\infty} 
+                \\left< \\bar{f}_{s_1}(\\mathbf{q})^{-1} \\bar{v}_{s_1}(\\mathbf{p}, \\mathbf{q}) h \\left[ \\bar{s}_1(\\mathbf{q}_t) \\right] \\right>
+        
+        where the bracketed quantity is averaged over a large number of the
+        child trajectories spawned from a large number of parent configurations.
+        
+        The `saveParentTrajectory` and `saveChildTrajectories` flags enable
+        saving of the parent trajectory and/or a sampling of child trajectories
+        as XYZ data files for later visualization in programs such as VMD.
+        This is off by default because it is very slow. 
+        """
+        
+        # Set the parameters for the RPMD calculation
+        self.beta = 4.35974417e-18 / (constants.kB * T)
+        self.dt = dt / 2.418884326505e-5
+        self.Nbeads = Nbeads
+        self.kforce = 0.0
+        equilibrationTime /= 2.418884326505e-5
+        parentEvolutionTime /= 2.418884326505e-5
+        childEvolutionTime /= 2.418884326505e-5
+        childSamplingTime /= 2.418884326505e-5
+        geometry = self.transitionState.geometry[:,:,0]
+        self.xi_current = xi_current
+        self.mode = 2
+        
+        logging.info('*****************************')
+        logging.info('RPMD transmission coefficient')
+        logging.info('*****************************')
+        logging.info('')
+        
+        equilibrationSteps = int(round(equilibrationTime / self.dt))
+        parentEvolutionSteps = int(round(parentEvolutionTime / self.dt))
+        childEvolutionSteps = int(round(childEvolutionTime / self.dt))
+        childSamplingSteps = int(round(childSamplingTime / self.dt))
+        
+        logging.info('Parameters')
+        logging.info('==========')
+        logging.info('Temperature                             = {0:g} K'.format(T))
+        logging.info('Number of beads                         = {0:d}'.format(Nbeads))
+        logging.info('Reaction coordinate                     = {0:g}'.format(xi_current))
+        logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
+        logging.info('Length of parent trajectory             = {0:g} ps ({1:d} steps)'.format(parentEvolutionSteps * self.dt * 2.418884326505e-5, parentEvolutionSteps))
+        logging.info('Initial parent equilibration time       = {0:g} ps ({1:d} steps)'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
+        logging.info('Frequency of child trajectory sampling  = {0:g} ps ({1:d} steps)'.format(childSamplingSteps * self.dt * 2.418884326505e-5, childSamplingSteps))
+        logging.info('Length of child trajectories            = {0:g} ps ({1:d} steps)'.format(childEvolutionSteps * self.dt * 2.418884326505e-5, childEvolutionSteps))
+        logging.info('Number of children per sampling         = {0:d}'.format(childrenPerSampling))
+        logging.info('')
+        
+        self.activate()
+        
+        # Generate initial position using transition state geometry
+        # (All beads start at same position)
+        q = numpy.zeros((3,self.Natoms,self.Nbeads), order='F')
+        for i in range(3):
+            for j in range(self.Natoms):
+                for k in range(self.Nbeads):
+                    q[i,j,k] = geometry[i,j]
+        # Sample initial momentum from normal distribution
+        p = self.sampleMomentum()
+        
+        # Equilibrate parent trajectory while constraining to dividing surface
+        # and sampling from Andersen thermostat
+        logging.info('Equilibrating parent trajectory for {0:g} ps...'.format(equilibrationSteps * self.dt * 2.418884326505e-5))
+        result = system.equilibrate(0, p, q, equilibrationSteps, self.xi_current, self.potential, True, saveParentTrajectory)
+        
+        logging.info('Finished equilibrating parent trajectory.')
+        logging.info('')
+        
+        # Initialize parameters used to compute recrossing factor
+        kappa_num = numpy.zeros(childEvolutionSteps, order='F')
+        kappa_denom = numpy.array(0.0, order='F')
+        
+        # Continue evolving parent trajectory, interrupting to sample sets of
+        # child trajectories in order to update the recrossing factor
+        for iter in range(parentEvolutionSteps / childSamplingSteps + 1):
+            
+            logging.info('Sampling {0} child trajectories at {1:g} ps...'.format(childrenPerSampling, iter * childSamplingSteps * self.dt * 2.418884326505e-5))
+
+            # Sample a number of child trajectories using the current parent
+            # configuration
+            results = []
+            saveChildTrajectory = saveChildTrajectories
+            for childCount in range(childrenPerSampling / 2):
+                p_child = self.sampleMomentum()
+                
+                q_child = numpy.array(q.copy(), order='F')
+                result = system.recrossing_trajectory(0, -p_child, q_child, xi_current, self.potential, saveChildTrajectory, kappa_num, kappa_denom)
+    
+                saveChildTrajectory = False
+                
+                q_child = numpy.array(q.copy(), order='F')
+                result = system.recrossing_trajectory(0, p_child, q_child, xi_current, self.potential, saveChildTrajectory, kappa_num, kappa_denom)
+        
+            logging.info('Finished sampling {0} child trajectories at {1:g} ps.'.format(childrenPerSampling, iter * childSamplingSteps * self.dt * 2.418884326505e-5))
+            
+            f = open('recrossing_factor.dat', 'w')
+            for childStep in range(childEvolutionSteps):
+                f.write('{0:11.3f} {1:11.6f} {2:11.6f}\n'.format(
+                    childStep * self.dt * 2.418884326505e-2,
+                    kappa_num[childStep] / kappa_denom,
+                    kappa_num[childStep] / ((iter+1) * childrenPerSampling),
+                ))
+            f.close()
+            
+            logging.info('Current value of transmission coefficient = {0:.6f}'.format(kappa_num[-1] / kappa_denom))
+            logging.info('')
+            
+            # Further evolve parent trajectory while constraining to dividing
+            # surface and sampling from Andersen thermostat
+            logging.info('Evolving parent trajectory to {0:g} ps...'.format((iter+1) * childSamplingSteps * self.dt * 2.418884326505e-5))
+            result = system.equilibrate(0, p, q, childSamplingSteps, self.xi_current, self.potential, True, saveParentTrajectory)
+        
+        logging.info('Finished evolving parent trajectory for {0:g} ps...'.format(parentEvolutionSteps * self.dt * 2.418884326505e-5))
+        logging.info('')
+        
+        logging.info('Result of recrossing factor calculation:')
+        logging.info('')
+        logging.info('=========== =========== ===========')
+        logging.info('Time (fs)   kappa (new) kappa (old)')
+        logging.info('=========== =========== ===========')
+        
+        for childStep in range(childEvolutionSteps):
+            logging.info('{0:11.3f} {1:11.6f} {2:11.6f}'.format(
+                childStep * self.dt * 2.418884326505e-2,
+                kappa_num[childStep] / kappa_denom,
+                kappa_num[childStep] / ((iter+1) * childrenPerSampling),
+            ))
+        logging.info('=========== =========== ===========')
+        logging.info('')
+
+        logging.info('Final value of transmission coefficient = {0:.6f}'.format(kappa_num[-1] / kappa_denom))
+        logging.info('')
+        
+        return kappa_num[-1] / kappa_denom
+    
     def sampleMomentum(self):
         """
         Return a pseudo-random sampling of momenta from a Boltzmann 
