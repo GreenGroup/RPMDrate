@@ -175,6 +175,67 @@ contains
 
     end subroutine recrossing_trajectory
 
+    subroutine umbrella_trajectory(t, p, q, Natoms, Nbeads, steps, &
+        xi_current, potential, save_trajectory, av, av2, result)
+
+        implicit none
+
+        external potential
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
+        double precision, intent(in) :: xi_current
+        integer, intent(in) :: steps
+        integer, intent(in) :: save_trajectory
+        double precision, intent(out) :: av, av2
+        integer, intent(out) :: result
+
+        double precision :: V(Nbeads), dVdq(3,Natoms,Nbeads)
+        double precision :: xi, dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
+        double precision :: centroid(3,Natoms)
+        double precision :: threq, rn
+        integer :: step
+
+        av = 0.0d0
+        av2 = 0.0d0
+
+        ! Average frequency of collisions (Andersen thermostat)
+        threq = 1.0d0 / dsqrt(dble(steps))
+
+        ! Seed the random number generator
+        call random_init()
+
+        if (save_trajectory .eq. 1) then
+            open(unit=777,file='child.xyz')
+            open(unit=888,file='child_centroid.xyz')
+        end if
+
+        call get_centroid(q, Natoms, Nbeads, centroid)
+        call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
+        call potential(q, V, dVdq, Natoms, Nbeads)
+        call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current)
+        call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
+
+        do step = 1, steps
+            call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
+                xi_current, potential, 0, result)
+            if (result .ne. 0) exit
+            if (save_trajectory .eq. 1) call update_vmd_output(q, Natoms, Nbeads, 777, 888)
+
+            av = av + xi
+            av2 = av2 + xi * xi
+
+            call random(rn)
+            if (rn .lt. threq) call sample_momentum(p, mass, beta, Natoms, Nbeads)
+
+        end do
+
+        if (save_trajectory .eq. 1) then
+            close(unit=777)
+            close(unit=888)
+        end if
+
+    end subroutine umbrella_trajectory
+
     ! Advance the simluation by one time step using the velocity Verlet
     ! algorithm.
     ! Parameters:
