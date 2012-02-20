@@ -18,6 +18,7 @@ python module _main ! in
             double precision :: beta
             double precision dimension(100) :: mass
             integer :: mode
+            double precision :: kforce
             integer, parameter,optional :: max_atoms=100
             double precision :: dt
             double precision, optional :: pi=dacos(-1.0d0)
@@ -87,6 +88,23 @@ python module _main ! in
                 integer, optional,intent(in),check(shape(p,1)==natoms),depend(p) :: natoms=shape(p,1)
                 integer, optional,intent(in),check(shape(p,2)==nbeads),depend(p) :: nbeads=shape(p,2)
             end subroutine constrain_momentum_to_dividing_surface
+            subroutine add_umbrella_potential(xi,dxi,v,dvdq,natoms,nbeads,xi_current) ! in :_main:rpmd/_main.f90:system
+                double precision intent(in) :: xi
+                double precision dimension(3,natoms),intent(in) :: dxi
+                double precision dimension(nbeads),intent(inout) :: v
+                double precision dimension(3,natoms,nbeads),intent(inout),depend(natoms,nbeads) :: dvdq
+                integer, optional,intent(in),check(shape(dxi,1)==natoms),depend(dxi) :: natoms=shape(dxi,1)
+                integer, optional,intent(in),check(len(v)>=nbeads),depend(v) :: nbeads=len(v)
+                double precision intent(in) :: xi_current
+            end subroutine add_umbrella_potential
+            subroutine add_bias_potential(dxi,d2xi,v,dvdq,natoms,nbeads) ! in :_main:rpmd/_main.f90:system
+                double precision dimension(3,natoms),intent(in) :: dxi
+                double precision dimension(3,natoms,3,natoms),intent(in),depend(natoms,natoms) :: d2xi
+                double precision dimension(nbeads),intent(inout) :: v
+                double precision dimension(3,natoms,nbeads),intent(inout),depend(natoms,nbeads) :: dvdq
+                integer, optional,intent(in),check(shape(dxi,1)==natoms),depend(dxi) :: natoms=shape(dxi,1)
+                integer, optional,intent(in),check(len(v)>=nbeads),depend(v) :: nbeads=len(v)
+            end subroutine add_bias_potential
             subroutine get_reaction_coordinate(centroid,natoms,xi_current,xi,dxi,d2xi) ! in :_main:rpmd/_main.f90:system
                 use reactants, only: reactants_gradient=>gradient,reactants_hessian=>hessian,reactants_value=>value
                 use transition_state, only: transition_state_gradient=>gradient,transition_state_hessian=>hessian,transition_state_value=>value

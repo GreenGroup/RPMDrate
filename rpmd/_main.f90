@@ -34,6 +34,7 @@ module system
     double precision :: dt
     double precision :: beta
     double precision :: mass(MAX_ATOMS)
+    double precision :: kforce
     integer :: mode
     double precision :: pi = dacos(-1.0d0)
 
@@ -86,6 +87,10 @@ contains
         call get_centroid(q, Natoms, Nbeads, centroid)
         call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
         call potential(q, V, dVdq, Natoms, Nbeads)
+        if (mode .eq. 1) then
+            call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current)
+            call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
+        end if
 
         do step = 1, steps
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
@@ -244,6 +249,10 @@ contains
 
         ! Update potential and forces using new position
         call potential(q, V, dVdq, Natoms, Nbeads)
+        if (mode .eq. 1) then
+            call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current)
+            call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
+        end if
 
         ! Update momentum (half time step)
         p = p - 0.5d0 * dt * dVdq
@@ -467,6 +476,106 @@ contains
         !end do
 
     end subroutine constrain_momentum_to_dividing_surface
+
+    ! Add an umbrella potential and the corresponding forces to the overall
+    ! potential and forces of the RPMD system.
+    ! Parameters:
+    !   xi - The value of the reaction coordinate
+    !   dxi - The gradient of the reaction coordinate
+    !   V - The potential of each bead
+    !   dVdq - The force exerted on each bead in each atom
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    !   xi_current - The current centroid value of the reaction coordinate
+    ! Returns:
+    !   V - The updated potential of each bead
+    !   dVdq - The updated force exerted on each bead in each atom
+    subroutine add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current)
+
+        implicit none
+        external potential
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(in) :: xi, dxi(3,Natoms)
+        double precision, intent(in) :: xi_current
+        double precision, intent(inout) :: V(Nbeads), dVdq(3,Natoms,Nbeads)
+
+        double precision :: delta
+        integer :: i, j, k
+
+        delta = xi - xi_current
+
+        ! Add umbrella potential
+        do k = 1, Nbeads
+            V(k) = V(k) + 0.5d0 * kforce * delta * delta
+        end do
+
+        ! Add umbrella force
+        do i = 1, 3
+            do j = 1, Natoms
+                do k = 1, Nbeads
+                    dVdq(i,j,k) = dVdq(i,j,k) + kforce * delta * dxi(i,j)
+                end do
+            end do
+        end do
+
+    end subroutine add_umbrella_potential
+
+    ! Add a bias potential and the corresponding forces to the overall
+    ! potential and forces of the RPMD system.
+    ! Parameters:
+    !   dxi - The gradient of the reaction coordinate
+    !   d2xi - The Hessian of the reaction coordinate
+    !   V - The potential of each bead
+    !   dVdq - The force exerted on each bead in each atom
+    !   Natoms - The number of atoms in the molecular system
+    !   Nbeads - The number of beads to use per atom
+    ! Returns:
+    !   V - The updated potential of each bead
+    !   dVdq - The updated force exerted on each bead in each atom
+    subroutine add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
+
+        implicit none
+        integer, intent(in) :: Natoms, Nbeads
+        double precision, intent(in) :: dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
+        double precision, intent(inout) :: V(Nbeads), dVdq(3,Natoms,Nbeads)
+
+        double precision :: fs, fs2, log_fs, coeff1, coeff2, dhams
+        integer :: i, j, k, i2, j2
+
+        fs2 = 0.0d0
+        do i = 1, 3
+            do j = 1, Natoms
+                fs2 = fs2 + dxi(i,j) * dxi(i,j) / mass(j)
+            end do
+        end do
+        coeff1 = 2.0d0 * pi * beta
+        fs2 = fs2 / coeff1
+        fs = sqrt(fs2)
+        log_fs = log(fs)
+        coeff2 = -1.0d0 / beta
+
+        ! Add bias term to potential
+        do k = 1, Nbeads
+            V(k) = V(k) + coeff2 * log_fs
+        end do
+
+        ! Add bias term to forces
+        do i = 1, 3
+            do j = 1, Natoms
+                dhams = 0.0d0
+                do i2 = 1, 3
+                    do j2 = 1, Natoms
+                        dhams = dhams + d2xi(i2,j2,i,j) * dxi(i2,j2) / mass(j2)
+                    end do
+                end do
+                dhams = dhams * coeff2 / (coeff1 * fs2)
+                do k = 1, Nbeads
+                    dVdq(i,j,k) = dVdq(i,j,k) + dhams
+                end do
+            end do
+        end do
+
+    end subroutine add_bias_potential
 
     ! Compute the value, gradient, and Hessian of the reaction coordinate.
     ! Parameters:
