@@ -61,6 +61,18 @@ def runUmbrellaTrajectory(rpmd, xi_current, q, equilibrationSteps, evolutionStep
     dav, dav2, result = system.umbrella_trajectory(0, p, q, evolutionSteps, xi_current, rpmd.potential, saveTrajectory)
     return dav, dav2
 
+def runRecrossingTrajectory(rpmd, xi_current, p, q, evolutionSteps, saveTrajectory):
+    """
+    Run an individual recrossing factor child trajectory, returning the 
+    contributions to the numerator and denominator of the recrossing factor
+    from this trajectory.
+    """
+    rpmd.activate()
+    kappa_num = numpy.zeros(evolutionSteps, order='F')
+    kappa_denom = numpy.array(0.0, order='F')
+    result = system.recrossing_trajectory(0, p, q, xi_current, rpmd.potential, saveTrajectory, kappa_num, kappa_denom)
+    return kappa_num, kappa_denom
+
 class RPMD:
     """
     A representation of a ring polymer molecular dynamics (RPMD) job for
@@ -263,6 +275,7 @@ class RPMD:
                                        childrenPerSampling,
                                        childEvolutionTime,
                                        childSamplingTime,
+                                       processes=1,
                                        saveParentTrajectory=False, 
                                        saveChildTrajectories=False):
         """
@@ -303,6 +316,10 @@ class RPMD:
         self.xi_current = xi_current
         self.mode = 2
         
+        # Create a pool of subprocesses to farm out the individual trajectories to
+        pool = multiprocessing.Pool(processes=processes)
+        results = []
+
         logging.info('*****************************')
         logging.info('RPMD transmission coefficient')
         logging.info('*****************************')
@@ -361,15 +378,23 @@ class RPMD:
             results = []
             saveChildTrajectory = saveChildTrajectories
             for childCount in range(childrenPerSampling / 2):
+                q_child = numpy.array(q.copy(), order='F')
                 p_child = self.sampleMomentum()
                 
-                q_child = numpy.array(q.copy(), order='F')
-                result = system.recrossing_trajectory(0, -p_child, q_child, xi_current, self.potential, saveChildTrajectory, kappa_num, kappa_denom)
-    
+                args = (self, xi_current, -p_child, q_child, childEvolutionSteps, saveChildTrajectory)
+                results.append(pool.apply_async(runRecrossingTrajectory, args))           
+
                 saveChildTrajectory = False
                 
-                q_child = numpy.array(q.copy(), order='F')
-                result = system.recrossing_trajectory(0, p_child, q_child, xi_current, self.potential, saveChildTrajectory, kappa_num, kappa_denom)
+                args = (self, xi_current, p_child, q_child, childEvolutionSteps, saveChildTrajectory)
+                results.append(pool.apply_async(runRecrossingTrajectory, args))           
+
+            for childCount in range(childrenPerSampling):
+                # This line will block until the child trajectory finishes
+                num, denom = results[childCount].get()
+                # Update the numerator and denominator of the recrossing factor expression
+                kappa_num += num
+                kappa_denom += denom
         
             logging.info('Finished sampling {0} child trajectories at {1:g} ps.'.format(childrenPerSampling, iter * childSamplingSteps * self.dt * 2.418884326505e-5))
             
