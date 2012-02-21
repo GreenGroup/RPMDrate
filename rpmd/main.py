@@ -50,6 +50,17 @@ class RPMDError(Exception):
 
 ################################################################################
 
+def runUmbrellaTrajectory(rpmd, xi_current, q, equilibrationSteps, evolutionSteps, saveTrajectory):
+    """
+    Run an individual umbrella integration trajectory, returning the sum of the
+    first and second moments of the reaction coordinate at each time step.
+    """
+    rpmd.activate()
+    p = rpmd.sampleMomentum()
+    result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, rpmd.potential, False, saveTrajectory)
+    dav, dav2, result = system.umbrella_trajectory(0, p, q, evolutionSteps, xi_current, rpmd.potential, saveTrajectory)
+    return dav, dav2
+
 class RPMD:
     """
     A representation of a ring polymer molecular dynamics (RPMD) job for
@@ -112,6 +123,7 @@ class RPMD:
                             numberOfTrajectories,
                             evolutionTime,
                             kforce,
+                            processes=1,
                             saveTrajectories=False):
         """
         Return the value of the static factor :math:`p^{(n)}(s_1, s_0)` as
@@ -132,6 +144,10 @@ class RPMD:
         av = numpy.zeros(Nxi)
         av2 = numpy.zeros(Nxi)
         
+        # Create a pool of subprocesses to farm out the individual trajectories to
+        pool = multiprocessing.Pool(processes=processes)
+        results = []
+
         logging.info('******************')
         logging.info('RPMD static factor')
         logging.info('******************')
@@ -179,6 +195,12 @@ class RPMD:
             result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, self.potential, False, saveTrajectories)
             logging.info('Finished equilibrating trajectory at xi = {0:g}.'.format(xi_current))
             q_initial[:,:,:,l] = q
+            
+            # Spawn a number of sampling trajectories using this equilibrated position as the starting point
+            logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(numberOfTrajectories, xi_current))
+            args = (self, xi_current, q, equilibrationSteps, evolutionSteps, saveTrajectories)
+            for trajectory in range(numberOfTrajectories):
+                results.append(pool.apply_async(runUmbrellaTrajectory, args))           
 
             logging.info('')
             
@@ -195,21 +217,26 @@ class RPMD:
             logging.info('Finished equilibrating trajectory at xi = {0:g}.'.format(xi_current))
             q_initial[:,:,:,l] = q
 
+            # Spawn a number of sampling trajectories using this equilibrated position as the starting point
+            logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(numberOfTrajectories, xi_current))
+            args = (self, xi_current, q, equilibrationSteps, evolutionSteps, saveTrajectories)
+            for trajectory in range(numberOfTrajectories):
+                results.append(pool.apply_async(runUmbrellaTrajectory, args))           
+
             logging.info('')
         
         # Wait for each trajectory to finish, then update the mean and variance
         count = 0
         f = open('reaction_coordinate.dat', 'w')
-        for l in range(Nxi):
+        indices = range(start, Nxi)
+        indices.extend(range(start - 1, -1, -1))
+        for l in indices:
             xi_current = xi_list[l]
             logging.info('Processing {0:d} trajectories at xi = {1:g}...'.format(numberOfTrajectories, xi_current))
             for trajectory in range(numberOfTrajectories):
                 
-                q = q_initial[:,:,:,l]
-                p = self.sampleMomentum()
-                result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, self.potential, False, saveTrajectories)
-                
-                dav, dav2, result = system.umbrella_trajectory(0, p, q, evolutionSteps, xi_current, self.potential, saveTrajectories)
+                # This line will block until the trajectory finishes
+                dav, dav2 = results[count].get()
                 
                 # Update the mean and variance with the results from this trajectory
                 # Note that these are counted at each time step in each trajectory
