@@ -131,6 +131,7 @@ class RPMD:
     
     def computeStaticFactor(self, T, Nbeads, dt, 
                             xi_list,
+                            initializationTime,
                             equilibrationTime,
                             numberOfTrajectories,
                             evolutionTime,
@@ -147,6 +148,7 @@ class RPMD:
         self.dt = dt / 2.418884326505e-5
         self.Nbeads = Nbeads
         Nxi = len(xi_list)
+        initializationTime /= 2.418884326505e-5
         equilibrationTime /= 2.418884326505e-5
         evolutionTime /= 2.418884326505e-5
         geometry = self.transitionState.geometry[:,:,0]
@@ -165,6 +167,7 @@ class RPMD:
         logging.info('******************')
         logging.info('')
         
+        initializationSteps = int(round(initializationTime / self.dt))
         equilibrationSteps = int(round(equilibrationTime / self.dt))
         evolutionSteps = int(round(evolutionTime / self.dt))
         
@@ -174,7 +177,8 @@ class RPMD:
         logging.info('Number of beads                         = {0:d}'.format(Nbeads))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Number of umbrella integration windows  = {0:d}'.format(Nxi))
-        logging.info('Initial equilibration time              = {0:g} ps ({1:d} steps)'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
+        logging.info('Initial equilibration time              = {0:g} ps ({1:d} steps)'.format(initializationSteps * self.dt * 2.418884326505e-5, initializationSteps))
+        logging.info('Trajectory equilibration time           = {0:g} ps ({1:d} steps)'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
         logging.info('Trajectory evolution time               = {0:g} ps ({1:d} steps)'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
         logging.info('Number of trajectories per window       = {0:d}'.format(numberOfTrajectories))
         logging.info('')
@@ -202,10 +206,10 @@ class RPMD:
             xi_current = xi_list[l]
             
             # Equilibrate in this window
-            logging.info('Equilibrating trajectory at xi = {0:g} for {1:g} ps...'.format(xi_current, equilibrationSteps * self.dt * 2.418884326505e-5))
+            logging.info('Generating initial position at xi = {0:g} for {1:g} ps...'.format(xi_current, initializationSteps * self.dt * 2.418884326505e-5))
             p = self.sampleMomentum()
-            result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, self.potential, False, saveTrajectories)
-            logging.info('Finished equilibrating trajectory at xi = {0:g}.'.format(xi_current))
+            result = system.equilibrate(0, p, q, initializationSteps, xi_current, self.potential, False, saveTrajectories)
+            logging.info('Finished generating initial position at xi = {0:g}.'.format(xi_current))
             q_initial[:,:,:,l] = q
             
             # Spawn a number of sampling trajectories using this equilibrated position as the starting point
@@ -223,10 +227,10 @@ class RPMD:
             xi_current = xi_list[l]
             
             # Equilibrate in this window
-            logging.info('Equilibrating trajectory at xi = {0:g} for {1:g} ps...'.format(xi_current, equilibrationSteps * self.dt * 2.418884326505e-5))
+            logging.info('Generating initial position at xi = {0:g} for {1:g} ps...'.format(xi_current, initializationSteps * self.dt * 2.418884326505e-5))
             p = self.sampleMomentum()
-            result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, self.potential, False, saveTrajectories)
-            logging.info('Finished equilibrating trajectory at xi = {0:g}.'.format(xi_current))
+            result = system.equilibrate(0, p, q, initializationSteps, xi_current, self.potential, False, saveTrajectories)
+            logging.info('Finished generating initial position at xi = {0:g}.'.format(xi_current))
             q_initial[:,:,:,l] = q
 
             # Spawn a number of sampling trajectories using this equilibrated position as the starting point
