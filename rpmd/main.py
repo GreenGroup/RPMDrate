@@ -183,6 +183,9 @@ class RPMD:
         logging.info('Number of trajectories per window       = {0:d}'.format(numberOfTrajectories))
         logging.info('')
 
+        # Only use one bead to generate initial positions in each window
+        # (We will equilibrate within each window to allow the beads to separate)
+        self.Nbeads = 1
         self.activate()
 
         # Generate initial position using transition state geometry
@@ -201,7 +204,7 @@ class RPMD:
         # Equilibrate in each window to determine the initial positions
         # First start at xi = 1 and move in the xi > 1 direction, using the
         # result of the previous xi as the initial position for the next xi
-        q_initial = numpy.zeros((3,self.Natoms,self.Nbeads,Nxi), order='F')
+        q_initial = numpy.zeros((3,self.Natoms,Nxi), order='F')
         for l in range(start, Nxi):
             xi_current = xi_list[l]
             
@@ -210,19 +213,11 @@ class RPMD:
             p = self.sampleMomentum()
             result = system.equilibrate(0, p, q, initializationSteps, xi_current, self.potential, False, saveTrajectories)
             logging.info('Finished generating initial position at xi = {0:g}.'.format(xi_current))
-            q_initial[:,:,:,l] = q
-            
-            # Spawn a number of sampling trajectories using this equilibrated position as the starting point
-            logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(numberOfTrajectories, xi_current))
-            args = (self, xi_current, q, equilibrationSteps, evolutionSteps, saveTrajectories)
-            for trajectory in range(numberOfTrajectories):
-                results.append(pool.apply_async(runUmbrellaTrajectory, args))           
-
-            logging.info('')
-            
+            q_initial[:,:,l] = q[:,:,0]
+                        
         # Now start at xi = 1 and move in the xi < 1 direction, using the
         # result of the previous xi as the initial position for the next xi
-        q = q_initial[:,:,:,start]
+        q[:,:,0] = q_initial[:,:,start]
         for l in range(start - 1, -1, -1):
             xi_current = xi_list[l]
             
@@ -231,22 +226,31 @@ class RPMD:
             p = self.sampleMomentum()
             result = system.equilibrate(0, p, q, initializationSteps, xi_current, self.potential, False, saveTrajectories)
             logging.info('Finished generating initial position at xi = {0:g}.'.format(xi_current))
-            q_initial[:,:,:,l] = q
+            q_initial[:,:,l] = q[:,:,0]
+        
+        logging.info('')
+        
+        # Now use the actual requested number of beads when sampling in each window
+        self.Nbeads = Nbeads
+        self.activate()
 
-            # Spawn a number of sampling trajectories using this equilibrated position as the starting point
+        # Spawn a number of sampling trajectories in each window
+        for l in range(Nxi):
+            xi_current = xi_list[l]
+            q = numpy.empty((3,self.Natoms,self.Nbeads), order='F')
+            for k in range(self.Nbeads):
+                q[:,:,k] = q_initial[:,:,l]
             logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(numberOfTrajectories, xi_current))
             args = (self, xi_current, q, equilibrationSteps, evolutionSteps, saveTrajectories)
             for trajectory in range(numberOfTrajectories):
                 results.append(pool.apply_async(runUmbrellaTrajectory, args))           
 
-            logging.info('')
-        
+        logging.info('')
+                    
         # Wait for each trajectory to finish, then update the mean and variance
         count = 0
         f = open('reaction_coordinate.dat', 'w')
-        indices = range(start, Nxi)
-        indices.extend(range(start - 1, -1, -1))
-        for l in indices:
+        for l in range(Nxi):
             xi_current = xi_list[l]
             logging.info('Processing {0:d} trajectories at xi = {1:g}...'.format(numberOfTrajectories, xi_current))
             for trajectory in range(numberOfTrajectories):
