@@ -84,7 +84,7 @@ class RPMD:
     `mass`                      The mass of each atom in the molecular system
     `Natoms`                    The number of atoms in the molecular system
     `reactants`                 The dividing surface near the reactants, as a :class:`Reactants` object
-    `transitionState`           The dividing surface near the transition state, as a :class:`TransitionState` object
+    `transitionStates`          The dividing surface(s) near the transition state, as a list of :class:`TransitionState` objects
     `potential`                 A function that computes the potential and forces for a given position
     --------------------------- ------------------------------------------------
     `beta`                      The reciprocal temperature of the RPMD simulation
@@ -96,7 +96,7 @@ class RPMD:
     
     """
 
-    def __init__(self, reactants, transitionState, potential):
+    def __init__(self, reactants, transitionStates, potential):
         """
         Initialize an RPMD object. The `mass` of each atom should be given in
         g/mol, while the `Rinf` value should be given in angstroms. (They will
@@ -105,7 +105,7 @@ class RPMD:
         self.mass = reactants.mass
         self.Natoms = len(self.mass)
         self.reactants = reactants
-        self.transitionState = transitionState
+        self.transitionStates = transitionStates or []
         self.potential = potential
         
         self.beta = 0
@@ -126,7 +126,29 @@ class RPMD:
         system.mass[0:Natoms] = self.mass
         system.mode = self.mode
         self.reactants.activate(module=reactants)
-        self.transitionState.activate(module=transition_state)
+        
+        Nts = len(self.transitionStates)
+        Nforming_bonds = max([ts.formingBonds.shape[1] for ts in self.transitionStates])
+        Nbreaking_bonds = max([ts.breakingBonds.shape[1] for ts in self.transitionStates])
+
+        formingBonds = numpy.zeros((Nts,Nforming_bonds,2))
+        breakingBonds = numpy.zeros((Nts,Nbreaking_bonds,2))
+        formingBondLengths = numpy.zeros((Nts,Nforming_bonds))
+        breakingBondLengths = numpy.zeros((Nts,Nbreaking_bonds))
+        
+        for n, ts in enumerate(self.transitionStates):
+            formingBonds[n,:,:] = ts.formingBonds
+            breakingBonds[n,:,:] = ts.breakingBonds
+            formingBondLengths[n,:] = ts.formingBondLengths
+            breakingBondLengths[n,:] = ts.breakingBondLengths
+        
+        transition_state.number_of_transition_states = Nts
+        transition_state.number_of_forming_bonds = Nforming_bonds
+        transition_state.forming_bonds[0:Nts,0:Nforming_bonds,:] = formingBonds
+        transition_state.forming_bond_lengths[0:Nts,0:Nforming_bonds] = formingBondLengths
+        transition_state.number_of_breaking_bonds = Nbreaking_bonds
+        transition_state.breaking_bonds[0:Nts,0:Nbreaking_bonds,:] = breakingBonds
+        transition_state.breaking_bond_lengths[0:Nts,0:Nbreaking_bonds] = breakingBondLengths
     
     def computeStaticFactor(self, T, Nbeads, dt, 
                             xi_list,

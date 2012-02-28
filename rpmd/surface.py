@@ -65,55 +65,52 @@ class TransitionState:
 
     def __init__(self, geometry, formingBonds, breakingBonds):
         
-        self.geometry = geometry
+        self.geometry = geometry.T / 0.52918
 
         self.formingBonds = numpy.array(formingBonds, numpy.int)
         self.breakingBonds = numpy.array(breakingBonds, numpy.int)
         
-        Nts = self.geometry.shape[2]
-        Nforming_bonds = formingBonds.shape[1]
-        Nbreaking_bonds = breakingBonds.shape[1]
+        Nforming_bonds = self.formingBonds.shape[0]
+        Nbreaking_bonds = self.breakingBonds.shape[0]
         
-        self.formingBondLengths = numpy.empty((Nts, Nforming_bonds))
-        self.breakingBondLengths = numpy.empty((Nts, Nbreaking_bonds))
+        self.formingBondLengths = numpy.empty(Nforming_bonds)
+        self.breakingBondLengths = numpy.empty(Nbreaking_bonds)
         
-        for n in range(Nts):
-            for m in range(Nforming_bonds):
-                atom1 = self.formingBonds[n,m,0] - 1
-                atom2 = self.formingBonds[n,m,1] - 1
-                Rx = self.geometry[0,atom1,n] - self.geometry[0,atom2,n]
-                Ry = self.geometry[1,atom1,n] - self.geometry[1,atom2,n]
-                Rz = self.geometry[2,atom1,n] - self.geometry[2,atom2,n]
-                R = math.sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
-                self.formingBondLengths[n,m] = R
-            
-            for m in range(Nbreaking_bonds):
-                atom1 = self.breakingBonds[n,m,0] - 1
-                atom2 = self.breakingBonds[n,m,1] - 1
-                Rx = self.geometry[0,atom1,n] - self.geometry[0,atom2,n]
-                Ry = self.geometry[1,atom1,n] - self.geometry[1,atom2,n]
-                Rz = self.geometry[2,atom1,n] - self.geometry[2,atom2,n]
-                R = math.sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
-                self.breakingBondLengths[n,m] = R
+        for m in range(Nforming_bonds):
+            atom1 = self.formingBonds[m,0] - 1
+            atom2 = self.formingBonds[m,1] - 1
+            Rx = self.geometry[0,atom1] - self.geometry[0,atom2]
+            Ry = self.geometry[1,atom1] - self.geometry[1,atom2]
+            Rz = self.geometry[2,atom1] - self.geometry[2,atom2]
+            R = math.sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
+            self.formingBondLengths[m] = R
+        
+        for m in range(Nbreaking_bonds):
+            atom1 = self.breakingBonds[m,0] - 1
+            atom2 = self.breakingBonds[m,1] - 1
+            Rx = self.geometry[0,atom1] - self.geometry[0,atom2]
+            Ry = self.geometry[1,atom1] - self.geometry[1,atom2]
+            Rz = self.geometry[2,atom1] - self.geometry[2,atom2]
+            R = math.sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
+            self.breakingBondLengths[m] = R
 
     def activate(self, module=None):
         """
         Set this object as the active transition state dividing surface in the
         Fortran layer.
         """
-        Nts = self.formingBonds.shape[0]
         Nforming_bonds = self.formingBonds.shape[1]
         Nbreaking_bonds = self.breakingBonds.shape[1]
 
         if module is None: module = transition_state
 
-        module.number_of_transition_states = Nts
+        module.number_of_transition_states = 1
         module.number_of_forming_bonds = Nforming_bonds
-        module.forming_bonds[0:Nts,0:Nforming_bonds,:] = self.formingBonds
-        module.forming_bond_lengths[0:Nts,0:Nforming_bonds] = self.formingBondLengths
+        module.forming_bonds[0,0:Nforming_bonds,:] = self.formingBonds
+        module.forming_bond_lengths[0,0:Nforming_bonds] = self.formingBondLengths
         module.number_of_breaking_bonds = Nbreaking_bonds
-        module.breaking_bonds[0:Nts,0:Nbreaking_bonds,:] = self.breakingBonds
-        module.breaking_bond_lengths[0:Nts,0:Nbreaking_bonds] = self.breakingBondLengths
+        module.breaking_bonds[0,0:Nbreaking_bonds,:] = self.breakingBonds
+        module.breaking_bond_lengths[0,0:Nbreaking_bonds] = self.breakingBondLengths
     
     def value(self, position):
         """
