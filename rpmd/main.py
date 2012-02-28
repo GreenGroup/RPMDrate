@@ -280,7 +280,7 @@ class RPMD:
     def computeTransmissionCoefficient(self, T, Nbeads, dt, 
                                        equilibrationTime,
                                        xi_current,
-                                       parentEvolutionTime,
+                                       childTrajectories,
                                        childrenPerSampling,
                                        childEvolutionTime,
                                        childSamplingTime,
@@ -335,7 +335,6 @@ class RPMD:
         logging.info('')
         
         equilibrationSteps = int(round(equilibrationTime / self.dt))
-        parentEvolutionSteps = int(round(parentEvolutionTime / self.dt))
         childEvolutionSteps = int(round(childEvolutionTime / self.dt))
         childSamplingSteps = int(round(childSamplingTime / self.dt))
         
@@ -345,7 +344,7 @@ class RPMD:
         logging.info('Number of beads                         = {0:d}'.format(Nbeads))
         logging.info('Reaction coordinate                     = {0:g}'.format(xi_current))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
-        logging.info('Length of parent trajectory             = {0:g} ps ({1:d} steps)'.format(parentEvolutionSteps * self.dt * 2.418884326505e-5, parentEvolutionSteps))
+        logging.info('Total number of child trajectories      = {0:d}'.format(childTrajectories))
         logging.info('Initial parent equilibration time       = {0:g} ps ({1:d} steps)'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
         logging.info('Frequency of child trajectory sampling  = {0:g} ps ({1:d} steps)'.format(childSamplingSteps * self.dt * 2.418884326505e-5, childSamplingSteps))
         logging.info('Length of child trajectories            = {0:g} ps ({1:d} steps)'.format(childEvolutionSteps * self.dt * 2.418884326505e-5, childEvolutionSteps))
@@ -378,41 +377,44 @@ class RPMD:
         
         # Continue evolving parent trajectory, interrupting to sample sets of
         # child trajectories in order to update the recrossing factor
-        for iter in range(parentEvolutionSteps / childSamplingSteps + 1):
+        childCount = 0; parentIter = 0
+        while childCount < childTrajectories:
             
-            logging.info('Sampling {0} child trajectories at {1:g} ps...'.format(childrenPerSampling, iter * childSamplingSteps * self.dt * 2.418884326505e-5))
+            logging.info('Sampling {0} child trajectories at {1:g} ps...'.format(childrenPerSampling, parentIter * childSamplingSteps * self.dt * 2.418884326505e-5))
 
             # Sample a number of child trajectories using the current parent
             # configuration
             results = []
             saveChildTrajectory = saveChildTrajectories
-            for childCount in range(childrenPerSampling / 2):
+            for child in range(childrenPerSampling / 2):
                 q_child = numpy.array(q.copy(), order='F')
                 p_child = self.sampleMomentum()
                 
                 args = (self, xi_current, -p_child, q_child, childEvolutionSteps, saveChildTrajectory)
                 results.append(pool.apply_async(runRecrossingTrajectory, args))           
-
+                childCount += 1
+                
                 saveChildTrajectory = False
                 
                 args = (self, xi_current, p_child, q_child, childEvolutionSteps, saveChildTrajectory)
-                results.append(pool.apply_async(runRecrossingTrajectory, args))           
+                results.append(pool.apply_async(runRecrossingTrajectory, args))
+                childCount += 1         
 
-            for childCount in range(childrenPerSampling):
+            for child in range(childrenPerSampling):
                 # This line will block until the child trajectory finishes
-                num, denom = results[childCount].get()
+                num, denom = results[child].get()
                 # Update the numerator and denominator of the recrossing factor expression
                 kappa_num += num
                 kappa_denom += denom
         
-            logging.info('Finished sampling {0} child trajectories at {1:g} ps.'.format(childrenPerSampling, iter * childSamplingSteps * self.dt * 2.418884326505e-5))
+            logging.info('Finished sampling {0} child trajectories at {1:g} ps.'.format(childrenPerSampling, parentIter * childSamplingSteps * self.dt * 2.418884326505e-5))
             
             f = open('recrossing_factor.dat', 'w')
             for childStep in range(childEvolutionSteps):
                 f.write('{0:11.3f} {1:11.6f} {2:11.6f}\n'.format(
                     childStep * self.dt * 2.418884326505e-2,
                     kappa_num[childStep] / kappa_denom,
-                    kappa_num[childStep] / ((iter+1) * childrenPerSampling),
+                    kappa_num[childStep] / ((parentIter+1) * childrenPerSampling),
                 ))
             f.close()
             
@@ -421,10 +423,12 @@ class RPMD:
             
             # Further evolve parent trajectory while constraining to dividing
             # surface and sampling from Andersen thermostat
-            logging.info('Evolving parent trajectory to {0:g} ps...'.format((iter+1) * childSamplingSteps * self.dt * 2.418884326505e-5))
+            logging.info('Evolving parent trajectory to {0:g} ps...'.format((parentIter+1) * childSamplingSteps * self.dt * 2.418884326505e-5))
             result = system.equilibrate(0, p, q, childSamplingSteps, self.xi_current, self.potential, 0.0, True, saveParentTrajectory)
         
-        logging.info('Finished evolving parent trajectory for {0:g} ps...'.format(parentEvolutionSteps * self.dt * 2.418884326505e-5))
+            parentIter += 1
+        
+        logging.info('Finished sampling of {0:d} child trajectories.'.format(childTrajectories))
         logging.info('')
         
         logging.info('Result of recrossing factor calculation:')
@@ -437,7 +441,7 @@ class RPMD:
             logging.info('{0:11.3f} {1:11.6f} {2:11.6f}'.format(
                 childStep * self.dt * 2.418884326505e-2,
                 kappa_num[childStep] / kappa_denom,
-                kappa_num[childStep] / ((iter+1) * childrenPerSampling),
+                kappa_num[childStep] / ((parentIter+1) * childrenPerSampling),
             ))
         logging.info('=========== =========== ===========')
         logging.info('')
