@@ -367,7 +367,7 @@ class RPMD:
         # Equilibrate parent trajectory while constraining to dividing surface
         # and sampling from Andersen thermostat
         logging.info('Equilibrating parent trajectory for {0:g} ps...'.format(equilibrationSteps * self.dt * 2.418884326505e-5))
-        result = system.equilibrate(0, p, q, equilibrationSteps, self.xi_current, self.potential, True, saveParentTrajectory)
+        result = system.equilibrate(0, p, q, equilibrationSteps, self.xi_current, self.potential, 0.0, True, saveParentTrajectory)
         
         logging.info('Finished equilibrating parent trajectory.')
         logging.info('')
@@ -422,7 +422,7 @@ class RPMD:
             # Further evolve parent trajectory while constraining to dividing
             # surface and sampling from Andersen thermostat
             logging.info('Evolving parent trajectory to {0:g} ps...'.format((iter+1) * childSamplingSteps * self.dt * 2.418884326505e-5))
-            result = system.equilibrate(0, p, q, childSamplingSteps, self.xi_current, self.potential, True, saveParentTrajectory)
+            result = system.equilibrate(0, p, q, childSamplingSteps, self.xi_current, self.potential, 0.0, True, saveParentTrajectory)
         
         logging.info('Finished evolving parent trajectory for {0:g} ps...'.format(parentEvolutionSteps * self.dt * 2.418884326505e-5))
         logging.info('')
