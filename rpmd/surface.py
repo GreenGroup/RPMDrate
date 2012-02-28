@@ -39,6 +39,7 @@ import numpy
 
 from rpmd._surface import *
 import rpmd.constants as constants
+from rpmd.element import atomicMass
 
 ################################################################################
 
@@ -149,22 +150,24 @@ class Reactants:
     ======================= ====================================================
     Attribute               Description
     ======================= ====================================================
-    `mass`                  The masses of the atoms in the molecular system
+    `atoms`                 The symbols of the atoms in the molecular system
     `reactant1Atoms`        A list of the indices of the atoms in the first reactant molecule
     `reactant2Atoms`        A list of the indices of the atoms in the second reactant molecule
     `Rinf`                  The distance at which the reactant molecule interaction becomes negligible
     ----------------------- ----------------------------------------------------
+    `mass`                  The masses of the atoms in the molecular system
     `totalMass1`            The total mass of the first reactant molecule
     `totalMass2`            The total mass of the second reactant molecule
     `massFractions`         The mass fraction of each atom in its reactant
     ======================= ====================================================
     
-    The `totalMass1, `totalMass2`, and `massFractions` attributes are
+    The `mass`, `totalMass1, `totalMass2`, and `massFractions` attributes are
     automatically computed from the other attributes.
     """
     
-    def __init__(self, mass, reactant1Atoms, reactant2Atoms, Rinf):
-        self.mass = mass * 0.001 / constants.Na / 9.1093826e-31
+    def __init__(self, atoms, reactant1Atoms, reactant2Atoms, Rinf):
+        self.atoms = atoms
+        self.mass = numpy.array([atomicMass[atom] for atom in atoms]) * 0.001 / constants.Na / 9.1093826e-31
         self.reactant1Atoms = numpy.array(reactant1Atoms, numpy.int)
         self.reactant2Atoms = numpy.array(reactant2Atoms, numpy.int)
         self.Rinf = Rinf / 0.52918
