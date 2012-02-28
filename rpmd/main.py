@@ -126,6 +126,7 @@ class RPMD:
         system.mass[0:Natoms] = self.mass
         system.mode = self.mode
         self.reactants.activate(module=reactants)
+        self.thermostat.activate(module=system)
         
         Nts = len(self.transitionStates)
         Nforming_bonds = max([ts.formingBonds.shape[1] for ts in self.transitionStates])
@@ -157,6 +158,7 @@ class RPMD:
                             numberOfTrajectories,
                             evolutionTime,
                             kforce,
+                            thermostat,
                             processes=1,
                             saveTrajectories=False):
         """
@@ -177,6 +179,7 @@ class RPMD:
         xi_list = numpy.array(xi_list)
         Nxi = len(xi_list)
         geometry = self.transitionStates[0].geometry
+        self.thermostat = thermostat
         self.mode = 1
         
         if isinstance(kforce, float):
@@ -310,6 +313,7 @@ class RPMD:
                                        childrenPerSampling,
                                        childEvolutionTime,
                                        childSamplingTime,
+                                       thermostat,
                                        processes=1,
                                        saveParentTrajectory=False, 
                                        saveChildTrajectories=False):
@@ -351,6 +355,7 @@ class RPMD:
         self.kforce = 0.0
         geometry = self.transitionStates[0].geometry
         self.xi_current = xi_current
+        self.thermostat = thermostat
         self.mode = 2
         
         # Create a pool of subprocesses to farm out the individual trajectories to
