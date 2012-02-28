@@ -50,15 +50,15 @@ class RPMDError(Exception):
 
 ################################################################################
 
-def runUmbrellaTrajectory(rpmd, xi_current, q, equilibrationSteps, evolutionSteps, saveTrajectory):
+def runUmbrellaTrajectory(rpmd, xi_current, q, equilibrationSteps, evolutionSteps, kforce, saveTrajectory):
     """
     Run an individual umbrella integration trajectory, returning the sum of the
     first and second moments of the reaction coordinate at each time step.
     """
     rpmd.activate()
     p = rpmd.sampleMomentum()
-    result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, rpmd.potential, False, saveTrajectory)
-    dav, dav2, result = system.umbrella_trajectory(0, p, q, evolutionSteps, xi_current, rpmd.potential, saveTrajectory)
+    result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, rpmd.potential, kforce, False, saveTrajectory)
+    dav, dav2, result = system.umbrella_trajectory(0, p, q, evolutionSteps, xi_current, rpmd.potential, kforce, saveTrajectory)
     return dav, dav2
 
 def runRecrossingTrajectory(rpmd, xi_current, p, q, evolutionSteps, saveTrajectory):
@@ -123,7 +123,6 @@ class RPMD:
         Natoms = self.mass.shape[0]
         system.dt = self.dt
         system.beta = self.beta
-        system.kforce = self.kforce
         system.mass[0:Natoms] = self.mass
         system.mode = self.mode
         self.reactants.activate(module=reactants)
@@ -152,8 +151,10 @@ class RPMD:
         equilibrationTime /= 2.418884326505e-5
         evolutionTime /= 2.418884326505e-5
         geometry = self.transitionState.geometry[:,:,0]
-        self.kforce = kforce
         self.mode = 1
+        
+        if isinstance(kforce, float):
+            kforce = numpy.ones_like(xi_list) * kforce
         
         av = numpy.zeros(Nxi)
         av2 = numpy.zeros(Nxi)
@@ -211,7 +212,7 @@ class RPMD:
             # Equilibrate in this window
             logging.info('Generating initial position at xi = {0:g} for {1:g} ps...'.format(xi_current, initializationSteps * self.dt * 2.418884326505e-5))
             p = self.sampleMomentum()
-            result = system.equilibrate(0, p, q, initializationSteps, xi_current, self.potential, False, saveTrajectories)
+            result = system.equilibrate(0, p, q, initializationSteps, xi_current, self.potential, kforce[l], False, saveTrajectories)
             logging.info('Finished generating initial position at xi = {0:g}.'.format(xi_current))
             q_initial[:,:,l] = q[:,:,0]
                         
@@ -224,7 +225,7 @@ class RPMD:
             # Equilibrate in this window
             logging.info('Generating initial position at xi = {0:g} for {1:g} ps...'.format(xi_current, initializationSteps * self.dt * 2.418884326505e-5))
             p = self.sampleMomentum()
-            result = system.equilibrate(0, p, q, initializationSteps, xi_current, self.potential, False, saveTrajectories)
+            result = system.equilibrate(0, p, q, initializationSteps, xi_current, self.potential, kforce[l], False, saveTrajectories)
             logging.info('Finished generating initial position at xi = {0:g}.'.format(xi_current))
             q_initial[:,:,l] = q[:,:,0]
         
@@ -241,7 +242,7 @@ class RPMD:
             for k in range(self.Nbeads):
                 q[:,:,k] = q_initial[:,:,l]
             logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(numberOfTrajectories, xi_current))
-            args = (self, xi_current, q, equilibrationSteps, evolutionSteps, saveTrajectories)
+            args = (self, xi_current, q, equilibrationSteps, evolutionSteps, kforce[l], saveTrajectories)
             for trajectory in range(numberOfTrajectories):
                 results.append(pool.apply_async(runUmbrellaTrajectory, args))           
 

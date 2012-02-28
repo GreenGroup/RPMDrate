@@ -34,7 +34,6 @@ module system
     double precision :: dt
     double precision :: beta
     double precision :: mass(MAX_ATOMS)
-    double precision :: kforce
     integer :: mode
     double precision :: pi = dacos(-1.0d0)
 
@@ -52,12 +51,13 @@ contains
     !   steps - The number of time steps to take in this trajectory
     !   xi_current - The current centroid value of the reaction coordinate
     !   potential - A function that evaluates the potential and force for a given position
+    !   kforce - The umbrella potential force constant
     !   constrain - 1 to constrain to dividing surface, 0 otherwise
     !   save_trajectory - 1 to save the trajectory to disk for visualization (slow!), 0 otherwise
     ! Returns:
     !   result - 0 if the trajectory evolution was successful, nonzero if unsuccessful
     subroutine equilibrate(t, p, q, Natoms, Nbeads, steps, &
-        xi_current, potential, constrain, save_trajectory, result)
+        xi_current, potential, kforce, constrain, save_trajectory, result)
 
         implicit none
 
@@ -65,7 +65,7 @@ contains
         integer, intent(in) :: Natoms, Nbeads
         double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
         integer, intent(in) :: steps
-        double precision, intent(in) :: xi_current
+        double precision, intent(in) :: xi_current, kforce
         integer, intent(in) :: constrain, save_trajectory
         integer, intent(out) :: result
 
@@ -88,13 +88,13 @@ contains
         call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
         call potential(q, V, dVdq, Natoms, Nbeads)
         if (mode .eq. 1) then
-            call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current)
+            call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current, kforce)
             call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
         end if
 
         do step = 1, steps
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
-                xi_current, potential, constrain, result)
+                xi_current, potential, kforce, constrain, result)
             if (result .ne. 0) exit
             if (save_trajectory .eq. 1) call update_vmd_output(q, Natoms, Nbeads, 77, 88)
 
@@ -162,7 +162,7 @@ contains
 
         do step = 1, steps
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
-                xi_current, potential, 0, result)
+                xi_current, potential, 0.d0, 0, result)
             if (result .ne. 0) exit
             if (save_trajectory .eq. 1) call update_vmd_output(q, Natoms, Nbeads, 777, 888)
             if (xi .gt. 0) kappa_num(step) = kappa_num(step) + vs / fs
@@ -176,14 +176,14 @@ contains
     end subroutine recrossing_trajectory
 
     subroutine umbrella_trajectory(t, p, q, Natoms, Nbeads, steps, &
-        xi_current, potential, save_trajectory, av, av2, result)
+        xi_current, potential, kforce, save_trajectory, av, av2, result)
 
         implicit none
 
         external potential
         integer, intent(in) :: Natoms, Nbeads
         double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
-        double precision, intent(in) :: xi_current
+        double precision, intent(in) :: xi_current, kforce
         integer, intent(in) :: steps
         integer, intent(in) :: save_trajectory
         double precision, intent(out) :: av, av2
@@ -212,12 +212,12 @@ contains
         call get_centroid(q, Natoms, Nbeads, centroid)
         call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
         call potential(q, V, dVdq, Natoms, Nbeads)
-        call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current)
+        call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current, kforce)
         call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
 
         do step = 1, steps
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
-                xi_current, potential, 0, result)
+                xi_current, potential, kforce, 0, result)
             if (result .ne. 0) exit
             if (save_trajectory .eq. 1) call update_vmd_output(q, Natoms, Nbeads, 777, 888)
 
@@ -251,6 +251,7 @@ contains
     !   Nbeads - The number of beads to use per atom
     !   xi_current - The current centroid value of the reaction coordinate
     !   potential - A function that evaluates the potential and force for a given position
+    !   kforce - The umbrella potential force constant
     !   constrain - 1 to constrain to the transition state dividing surface, 0 otherwise
     ! Returns:
     !   t - The updated simulation time
@@ -263,7 +264,7 @@ contains
     !   d2xi - The updated Hessian of the reaction coordinate
     !   result - A flag that indicates if the time step completed successfully (if zero) or that an error occurred (if nonzero)
     subroutine verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
-        xi_current, potential, constrain, result)
+        xi_current, potential, kforce, constrain, result)
 
         implicit none
         external potential, reactants_surface, transition_state_surface
@@ -271,7 +272,7 @@ contains
         double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
         double precision, intent(inout) :: V(Nbeads), dVdq(3,Natoms,Nbeads)
         double precision, intent(inout) :: xi, dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
-        double precision, intent(in) :: xi_current
+        double precision, intent(in) :: xi_current, kforce
         integer, intent(in) :: constrain
         integer, intent(out) :: result
 
@@ -311,7 +312,7 @@ contains
         ! Update potential and forces using new position
         call potential(q, V, dVdq, Natoms, Nbeads)
         if (mode .eq. 1) then
-            call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current)
+            call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current, kforce)
             call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
         end if
 
@@ -548,16 +549,17 @@ contains
     !   Natoms - The number of atoms in the molecular system
     !   Nbeads - The number of beads to use per atom
     !   xi_current - The current centroid value of the reaction coordinate
+    !   kforce - The umbrella potential force constant
     ! Returns:
     !   V - The updated potential of each bead
     !   dVdq - The updated force exerted on each bead in each atom
-    subroutine add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current)
+    subroutine add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current, kforce)
 
         implicit none
         external potential
         integer, intent(in) :: Natoms, Nbeads
         double precision, intent(in) :: xi, dxi(3,Natoms)
-        double precision, intent(in) :: xi_current
+        double precision, intent(in) :: xi_current, kforce
         double precision, intent(inout) :: V(Nbeads), dVdq(3,Natoms,Nbeads)
 
         double precision :: delta
