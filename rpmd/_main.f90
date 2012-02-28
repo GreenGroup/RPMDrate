@@ -36,6 +36,12 @@ module system
     double precision :: mass(MAX_ATOMS)
     integer :: mode
     double precision :: pi = dacos(-1.0d0)
+    
+    ! The type of thermostat (1 = Andersen)
+    integer :: thermostat
+    
+    ! Parameters for the Andersen thermostat
+    double precision :: andersen_sampling_time
 
 contains
 
@@ -72,12 +78,19 @@ contains
         double precision :: V(Nbeads), dVdq(3,Natoms,Nbeads)
         double precision :: xi, dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
         double precision :: centroid(3,Natoms)
-        double precision :: threq, rn
-        integer :: step
+        integer :: step, andersen_sampling_steps
 
         result = 0
 
-        threq = 1.0d0 / dsqrt(dble(steps))
+        ! Set up Andersen thermostat (if turned on)
+        andersen_sampling_steps = int(andersen_sampling_time / dt)
+        if (thermostat .eq. 1) then
+            if (andersen_sampling_time .gt. 0) then
+                andersen_sampling_steps = int(andersen_sampling_time / dt)
+            else
+                andersen_sampling_steps = int(dsqrt(dble(steps)))
+            end if
+        end if
 
         if (save_trajectory .eq. 1) then
             open(unit=77,file='equilibrate.xyz')
@@ -98,8 +111,12 @@ contains
             if (result .ne. 0) exit
             if (save_trajectory .eq. 1) call update_vmd_output(q, Natoms, Nbeads, 77, 88)
 
-            call random(rn)
-            if (rn .lt. threq) call sample_momentum(p, mass, beta, Natoms, Nbeads)
+            ! Apply Andersen thermostat (if turned on)
+            if (thermostat .eq. 1) then
+                if (andersen_sampling_time .gt. 0) then
+                    if (mod(step, andersen_sampling_steps) .eq. 0) call sample_momentum(p, mass, beta, Natoms, Nbeads)
+                end if
+            end if
 
         end do
 
@@ -192,17 +209,20 @@ contains
         double precision :: V(Nbeads), dVdq(3,Natoms,Nbeads)
         double precision :: xi, dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
         double precision :: centroid(3,Natoms)
-        double precision :: threq, rn
-        integer :: step
+        integer :: step, andersen_sampling_steps
 
         av = 0.0d0
         av2 = 0.0d0
 
-        ! Average frequency of collisions (Andersen thermostat)
-        threq = 1.0d0 / dsqrt(dble(steps))
-
-        ! Seed the random number generator
-        call random_init()
+        ! Set up Andersen thermostat (if turned on)
+        andersen_sampling_steps = int(andersen_sampling_time / dt)
+        if (thermostat .eq. 1) then
+            if (andersen_sampling_time .gt. 0) then
+                andersen_sampling_steps = floor(andersen_sampling_time / dt)
+            else
+                andersen_sampling_steps = floor(dsqrt(dble(steps)))
+            end if
+        end if
 
         if (save_trajectory .eq. 1) then
             open(unit=777,file='child.xyz')
@@ -224,8 +244,12 @@ contains
             av = av + xi
             av2 = av2 + xi * xi
 
-            call random(rn)
-            if (rn .lt. threq) call sample_momentum(p, mass, beta, Natoms, Nbeads)
+            ! Apply Andersen thermostat (if turned on)
+            if (thermostat .eq. 1) then
+                if (andersen_sampling_time .gt. 0) then
+                    if (mod(step, andersen_sampling_steps) .eq. 0) call sample_momentum(p, mass, beta, Natoms, Nbeads)
+                end if
+            end if
 
         end do
 
