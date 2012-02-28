@@ -32,10 +32,10 @@
 import math
 import numpy
 import logging
-import quantities as pq
 import multiprocessing
 
 import rpmd.constants as constants
+import rpmd.quantity as quantity
 
 from rpmd._main import *
 
@@ -164,15 +164,19 @@ class RPMD:
         computed using umbrella integration.
         """
         
+        T = float(quantity.convertTemperature(T, "K"))
+        dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
+        initializationTime = float(quantity.convertTime(initializationTime, "ps")) / 2.418884326505e-5
+        equilibrationTime = float(quantity.convertTime(equilibrationTime, "ps")) / 2.418884326505e-5
+        evolutionTime = float(quantity.convertTime(evolutionTime, "ps")) / 2.418884326505e-5
+        
         # Set the parameters for the RPMD calculation
         self.beta = 4.35974417e-18 / (constants.kB * T)
-        self.dt = dt / 2.418884326505e-5
+        self.dt = dt
         self.Nbeads = Nbeads
+        xi_list = numpy.array(xi_list)
         Nxi = len(xi_list)
-        initializationTime /= 2.418884326505e-5
-        equilibrationTime /= 2.418884326505e-5
-        evolutionTime /= 2.418884326505e-5
-        geometry = self.transitionState.geometry[:,:,0]
+        geometry = self.transitionStates[0].geometry
         self.mode = 1
         
         if isinstance(kforce, float):
@@ -334,16 +338,18 @@ class RPMD:
         This is off by default because it is very slow. 
         """
         
+        T = float(quantity.convertTemperature(T, "K"))
+        dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
+        equilibrationTime = float(quantity.convertTime(equilibrationTime, "ps")) / 2.418884326505e-5
+        childEvolutionTime = float(quantity.convertTime(childEvolutionTime, "ps")) / 2.418884326505e-5
+        childSamplingTime = float(quantity.convertTime(childSamplingTime, "ps")) / 2.418884326505e-5
+
         # Set the parameters for the RPMD calculation
         self.beta = 4.35974417e-18 / (constants.kB * T)
-        self.dt = dt / 2.418884326505e-5
+        self.dt = dt
         self.Nbeads = Nbeads
         self.kforce = 0.0
-        equilibrationTime /= 2.418884326505e-5
-        parentEvolutionTime /= 2.418884326505e-5
-        childEvolutionTime /= 2.418884326505e-5
-        childSamplingTime /= 2.418884326505e-5
-        geometry = self.transitionState.geometry[:,:,0]
+        geometry = self.transitionStates[0].geometry
         self.xi_current = xi_current
         self.mode = 2
         
