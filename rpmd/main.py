@@ -115,6 +115,8 @@ class RPMD:
         self.xi_current = 0
         self.mode = 0
         
+        self.umbrellaConfigurations = None
+        
         self.initializeLog()
         
     def initializeLog(self, verbose=logging.INFO):
@@ -292,7 +294,6 @@ class RPMD:
         
     def computeStaticFactor(self, T, Nbeads, dt, 
                             xi_list,
-                            initializationTime,
                             equilibrationTime,
                             numberOfTrajectories,
                             evolutionTime,
@@ -305,9 +306,12 @@ class RPMD:
         computed using umbrella integration.
         """
         
+        # Don't continue if the user hasn't generated the initial configurations yet
+        if not self.umbrellaConfigurations:
+            raise RPMDError('You must run generateUmbrellaConfigurations() before running computeStaticFactor().')
+        
         T = float(quantity.convertTemperature(T, "K"))
         dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
-        initializationTime = float(quantity.convertTime(initializationTime, "ps")) / 2.418884326505e-5
         equilibrationTime = float(quantity.convertTime(equilibrationTime, "ps")) / 2.418884326505e-5
         evolutionTime = float(quantity.convertTime(evolutionTime, "ps")) / 2.418884326505e-5
         
@@ -336,7 +340,6 @@ class RPMD:
         logging.info('******************')
         logging.info('')
         
-        initializationSteps = int(round(initializationTime / self.dt))
         equilibrationSteps = int(round(equilibrationTime / self.dt))
         evolutionSteps = int(round(evolutionTime / self.dt))
         
@@ -346,69 +349,25 @@ class RPMD:
         logging.info('Number of beads                         = {0:d}'.format(Nbeads))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Number of umbrella integration windows  = {0:d}'.format(Nxi))
-        logging.info('Initial equilibration time              = {0:g} ps ({1:d} steps)'.format(initializationSteps * self.dt * 2.418884326505e-5, initializationSteps))
         logging.info('Trajectory equilibration time           = {0:g} ps ({1:d} steps)'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
         logging.info('Trajectory evolution time               = {0:g} ps ({1:d} steps)'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
         logging.info('Number of trajectories per window       = {0:d}'.format(numberOfTrajectories))
         logging.info('')
 
-        # Only use one bead to generate initial positions in each window
-        # (We will equilibrate within each window to allow the beads to separate)
-        self.Nbeads = 1
-        self.activate()
-
-        # Generate initial position using transition state geometry
-        # (All beads start at same position)
-        q = numpy.zeros((3,self.Natoms,self.Nbeads), order='F')
-        for i in range(3):
-            for j in range(self.Natoms):
-                for k in range(self.Nbeads):
-                    q[i,j,k] = geometry[i,j]
-
-        # Find the window nearest to the dividing surface
-        for start in range(Nxi):
-            if xi_list[start] >= 1:
-                break
-           
-        # Equilibrate in each window to determine the initial positions
-        # First start at xi = 1 and move in the xi > 1 direction, using the
-        # result of the previous xi as the initial position for the next xi
-        q_initial = numpy.zeros((3,self.Natoms,Nxi), order='F')
-        for l in range(start, Nxi):
-            xi_current = xi_list[l]
-            
-            # Equilibrate in this window
-            logging.info('Generating initial position at xi = {0:g} for {1:g} ps...'.format(xi_current, initializationSteps * self.dt * 2.418884326505e-5))
-            p = self.sampleMomentum()
-            result = system.equilibrate(0, p, q, initializationSteps, xi_current, self.potential, kforce[l], False, saveTrajectories)
-            logging.info('Finished generating initial position at xi = {0:g}.'.format(xi_current))
-            q_initial[:,:,l] = q[:,:,0]
-                        
-        # Now start at xi = 1 and move in the xi < 1 direction, using the
-        # result of the previous xi as the initial position for the next xi
-        q[:,:,0] = q_initial[:,:,start]
-        for l in range(start - 1, -1, -1):
-            xi_current = xi_list[l]
-            
-            # Equilibrate in this window
-            logging.info('Generating initial position at xi = {0:g} for {1:g} ps...'.format(xi_current, initializationSteps * self.dt * 2.418884326505e-5))
-            p = self.sampleMomentum()
-            result = system.equilibrate(0, p, q, initializationSteps, xi_current, self.potential, kforce[l], False, saveTrajectories)
-            logging.info('Finished generating initial position at xi = {0:g}.'.format(xi_current))
-            q_initial[:,:,l] = q[:,:,0]
-        
-        logging.info('')
-        
-        # Now use the actual requested number of beads when sampling in each window
-        self.Nbeads = Nbeads
         self.activate()
 
         # Spawn a number of sampling trajectories in each window
         for l in range(Nxi):
             xi_current = xi_list[l]
+            
+            # Load initial configuration using results from generateUmbrellaConfigurations()
             q = numpy.empty((3,self.Natoms,self.Nbeads), order='F')
+            for xi, q_initial in self.umbrellaConfigurations:
+                if xi >= xi_current:
+                    break
             for k in range(self.Nbeads):
-                q[:,:,k] = q_initial[:,:,l]
+                q[:,:,k] = q_initial
+            
             logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(numberOfTrajectories, xi_current))
             args = (self, xi_current, q, equilibrationSteps, evolutionSteps, kforce[l], saveTrajectories)
             for trajectory in range(numberOfTrajectories):
