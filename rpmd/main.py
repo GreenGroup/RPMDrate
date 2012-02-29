@@ -186,6 +186,110 @@ class RPMD:
         transition_state.breaking_bonds[0:Nts,0:Nbreaking_bonds,:] = breakingBonds
         transition_state.breaking_bond_lengths[0:Nts,0:Nbreaking_bonds] = breakingBondLengths
     
+    def generateUmbrellaConfigurations(self, T, dt, 
+                                       evolutionTime,
+                                       xi_list,
+                                       kforce,
+                                       thermostat):
+        """
+        Generate a set of configurations along the reaction coordinate for
+        future use in RPMD umbrella sampling. The algorithm starts near the
+        transition state dividing surface and moves away in either direction,
+        running an RPMD equilibration in each window to obtain the appropriate
+        configuration in that window. That configuration is then used as the
+        initial position for determining the configuration in the next window.
+        """
+        
+        T = float(quantity.convertTemperature(T, "K"))
+        dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
+        evolutionTime = float(quantity.convertTime(evolutionTime, "ps")) / 2.418884326505e-5
+        
+        # Set the parameters for the RPMD calculation
+        self.beta = 4.35974417e-18 / (constants.kB * T)
+        self.dt = dt
+        self.Nbeads = 1
+        xi_list = numpy.array(xi_list)
+        Nxi = len(xi_list)
+        geometry = self.transitionStates[0].geometry
+        self.thermostat = thermostat
+        self.mode = 1
+        
+        if isinstance(kforce, float):
+            kforce = numpy.ones_like(xi_list) * kforce
+        
+        logging.info('****************************')
+        logging.info('RPMD umbrella configurations')
+        logging.info('****************************')
+        logging.info('')
+        
+        evolutionSteps = int(round(evolutionTime / self.dt))
+        
+        logging.info('Parameters')
+        logging.info('==========')
+        logging.info('Temperature                             = {0:g} K'.format(T))
+        logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
+        logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
+        logging.info('Number of umbrella integration windows  = {0:d}'.format(Nxi))
+        logging.info('Trajectory evolution time               = {0:g} ps ({1:d} steps)'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
+        logging.info('')
+
+        # Only use one bead to generate initial positions in each window
+        # (We will equilibrate within each window to allow the beads to separate)
+        self.Nbeads = 1
+        self.activate()
+
+        # Generate initial position using transition state geometry
+        # (All beads start at same position)
+        q = numpy.zeros((3,self.Natoms,self.Nbeads), order='F')
+        for i in range(3):
+            for j in range(self.Natoms):
+                for k in range(self.Nbeads):
+                    q[i,j,k] = geometry[i,j]
+
+        # Find the window nearest to the transition state dividing surface
+        for start in range(Nxi):
+            if xi_list[start] >= 1:
+                break
+        
+        # Equilibrate in each window to determine the initial positions
+        # First start at xi = 1 and move in the xi > 1 direction, using the
+        # result of the previous xi as the initial position for the next xi
+        q_initial = numpy.zeros((3,self.Natoms,Nxi), order='F')
+        for l in range(start, Nxi):
+            xi_current = xi_list[l]
+            
+            # Equilibrate in this window
+            logging.info('Generating configuration at xi = {0:g} for {1:g} ps...'.format(xi_current, evolutionSteps * self.dt * 2.418884326505e-5))
+            p = self.sampleMomentum()
+            result = system.equilibrate(0, p, q, evolutionSteps, xi_current, self.potential, kforce[l], False, False)
+            logging.info('Finished generating configuration at xi = {0:g}.'.format(xi_current))
+            q_initial[:,:,l] = q[:,:,0]
+                        
+        # Now start at xi = 1 and move in the xi < 1 direction, using the
+        # result of the previous xi as the initial position for the next xi
+        q[:,:,0] = q_initial[:,:,start]
+        for l in range(start - 1, -1, -1):
+            xi_current = xi_list[l]
+            
+            # Equilibrate in this window
+            logging.info('Generating configuration at xi = {0:g} for {1:g} ps...'.format(xi_current, evolutionSteps * self.dt * 2.418884326505e-5))
+            p = self.sampleMomentum()
+            result = system.equilibrate(0, p, q, evolutionSteps, xi_current, self.potential, kforce[l], False, False)
+            logging.info('Finished generating configuration at xi = {0:g}.'.format(xi_current))
+            q_initial[:,:,l] = q[:,:,0]
+        
+        # Store the computed configurations on the object for future use in
+        # umbrella sampling
+        self.umbrellaConfigurations = []
+        for l in range(Nxi):
+            xi_current = xi_list[l]
+            q_current = self.cleanGeometry(q_initial[:,:,l])
+            self.umbrellaConfigurations.append((xi_current, q_current))
+            logging.info('Configuration at xi = {0:g}:'.format(xi_current))
+            for j in range(self.Natoms):
+                logging.info('{0:5} {1:11.6f} {2:11.6f} {3:11.6f}'.format(self.reactants.atoms[j], q_current[0,j], q_current[1,j], q_current[2,j]))                
+            logging.info('')
+        
     def computeStaticFactor(self, T, Nbeads, dt, 
                             xi_list,
                             initializationTime,
@@ -525,3 +629,29 @@ class RPMD:
         distribution at the temperature of interest.
         """
         return system.sample_momentum(self.mass, self.beta, self.Nbeads)
+
+    def getCenterOfMass(self, position):
+        """
+        Return the center of mass for the given `position`.
+        """
+        cm = numpy.zeros(position.shape[0])
+        mass = self.reactants.mass
+        
+        for i in range(position.shape[0]):
+            for j in range(position.shape[1]):
+                cm[i] += position[i,j] * mass[j]
+                    
+        cm /= numpy.sum(mass)
+        
+        return cm
+
+    def cleanGeometry(self, geometry):
+        """
+        Return a copy of the geometry translated so that the center of mass
+        is at the origin.
+        """
+        newGeometry = geometry.copy()
+        cm = self.getCenterOfMass(geometry)
+        for j in range(self.Natoms):
+            newGeometry[:,j] -= cm
+        return newGeometry
