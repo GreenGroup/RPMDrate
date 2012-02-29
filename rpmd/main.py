@@ -60,7 +60,7 @@ def runUmbrellaTrajectory(rpmd, xi_current, q, equilibrationSteps, evolutionStep
     p = rpmd.sampleMomentum()
     result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, rpmd.potential, kforce, False, saveTrajectory)
     dav, dav2, result = system.umbrella_trajectory(0, p, q, evolutionSteps, xi_current, rpmd.potential, kforce, saveTrajectory)
-    return dav, dav2
+    return dav, dav2, evolutionSteps
 
 def runRecrossingTrajectory(rpmd, xi_current, p, q, evolutionSteps, saveTrajectory):
     """
@@ -73,6 +73,43 @@ def runRecrossingTrajectory(rpmd, xi_current, p, q, evolutionSteps, saveTrajecto
     kappa_denom = numpy.array(0.0, order='F')
     result = system.recrossing_trajectory(0, p, q, xi_current, rpmd.potential, saveTrajectory, kappa_num, kappa_denom)
     return kappa_num, kappa_denom
+
+################################################################################
+
+class Window:
+    """
+    A representation of a window along the reaction coordinate used for
+    umbrella sampling. The attributes are:
+    
+    =========================== ================================================
+    Attribute                   Description
+    =========================== ================================================
+    `xi`                        The value of the reaction coordinate in the center of the window
+    `kforce`                    The umbrella integration force constant for this window
+    `trajectories`              The number of independent sampling trajectories to run for this window
+    `equilibrationTime`         The equilibration time (no sampling) in each trajectory
+    `evolutionTime`             The evolution time (with sampling) in each trajectory
+    --------------------------- ------------------------------------------------
+    `count`                     The number of samples taken
+    `av`                        The mean of the reaction coordinate times the number of samples
+    `av2`                       The variance of the reaction coordinate times the number of samples
+    =========================== ================================================    
+    
+    """
+    
+    def __init__(self, xi, kforce, trajectories, equilibrationTime, evolutionTime):
+        # These parameters control the umbrella sampling trajectories
+        self.xi = xi
+        self.kforce = kforce
+        self.trajectories = trajectories
+        self.equilibrationTime = float(quantity.convertTime(equilibrationTime, "ps")) / 2.418884326505e-5
+        self.evolutionTime = float(quantity.convertTime(evolutionTime, "ps")) / 2.418884326505e-5
+        # The parameters store the results of the sampling
+        self.count = 0
+        self.av = 0.0
+        self.av2 = 0.0
+
+################################################################################
 
 class RPMD:
     """
@@ -293,11 +330,7 @@ class RPMD:
             logging.info('')
         
     def computeStaticFactor(self, T, Nbeads, dt, 
-                            xi_list,
-                            equilibrationTime,
-                            numberOfTrajectories,
-                            evolutionTime,
-                            kforce,
+                            windows,
                             thermostat,
                             processes=1,
                             saveTrajectories=False):
@@ -312,24 +345,14 @@ class RPMD:
         
         T = float(quantity.convertTemperature(T, "K"))
         dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
-        equilibrationTime = float(quantity.convertTime(equilibrationTime, "ps")) / 2.418884326505e-5
-        evolutionTime = float(quantity.convertTime(evolutionTime, "ps")) / 2.418884326505e-5
         
         # Set the parameters for the RPMD calculation
         self.beta = 4.35974417e-18 / (constants.kB * T)
         self.dt = dt
         self.Nbeads = Nbeads
-        xi_list = numpy.array(xi_list)
-        Nxi = len(xi_list)
-        geometry = self.transitionStates[0].geometry
+        Nwindows = len(windows)
         self.thermostat = thermostat
         self.mode = 1
-        
-        if isinstance(kforce, float):
-            kforce = numpy.ones_like(xi_list) * kforce
-        
-        av = numpy.zeros(Nxi)
-        av2 = numpy.zeros(Nxi)
         
         # Create a pool of subprocesses to farm out the individual trajectories to
         pool = multiprocessing.Pool(processes=processes)
@@ -340,37 +363,33 @@ class RPMD:
         logging.info('******************')
         logging.info('')
         
-        equilibrationSteps = int(round(equilibrationTime / self.dt))
-        evolutionSteps = int(round(evolutionTime / self.dt))
-        
         logging.info('Parameters')
         logging.info('==========')
         logging.info('Temperature                             = {0:g} K'.format(T))
         logging.info('Number of beads                         = {0:d}'.format(Nbeads))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
-        logging.info('Number of umbrella integration windows  = {0:d}'.format(Nxi))
-        logging.info('Trajectory equilibration time           = {0:g} ps ({1:d} steps)'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
-        logging.info('Trajectory evolution time               = {0:g} ps ({1:d} steps)'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
-        logging.info('Number of trajectories per window       = {0:d}'.format(numberOfTrajectories))
+        logging.info('Number of umbrella integration windows  = {0:d}'.format(Nwindows))
         logging.info('')
 
         self.activate()
 
         # Spawn a number of sampling trajectories in each window
-        for l in range(Nxi):
-            xi_current = xi_list[l]
+        for window in windows:
             
+            equilibrationSteps = int(round(window.equilibrationTime / self.dt))
+            evolutionSteps = int(round(window.evolutionTime / self.dt))
+        
             # Load initial configuration using results from generateUmbrellaConfigurations()
             q = numpy.empty((3,self.Natoms,self.Nbeads), order='F')
             for xi, q_initial in self.umbrellaConfigurations:
-                if xi >= xi_current:
+                if xi >= window.xi:
                     break
             for k in range(self.Nbeads):
                 q[:,:,k] = q_initial
             
-            logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(numberOfTrajectories, xi_current))
-            args = (self, xi_current, q, equilibrationSteps, evolutionSteps, kforce[l], saveTrajectories)
-            for trajectory in range(numberOfTrajectories):
+            logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(window.trajectories, window.xi))
+            args = (self, window.xi, q, equilibrationSteps, evolutionSteps, window.kforce, saveTrajectories)
+            for trajectory in range(window.trajectories):
                 results.append(pool.apply_async(runUmbrellaTrajectory, args))           
 
         logging.info('')
@@ -378,29 +397,29 @@ class RPMD:
         # Wait for each trajectory to finish, then update the mean and variance
         count = 0
         f = open('reaction_coordinate.dat', 'w')
-        for l in range(Nxi):
-            xi_current = xi_list[l]
-            logging.info('Processing {0:d} trajectories at xi = {1:g}...'.format(numberOfTrajectories, xi_current))
-            for trajectory in range(numberOfTrajectories):
+        for window in windows:
+            logging.info('Processing {0:d} trajectories at xi = {1:g}...'.format(window.trajectories, window.xi))
+            for trajectory in range(window.trajectories):
                 
                 # This line will block until the trajectory finishes
-                dav, dav2 = results[count].get()
+                dav, dav2, dcount = results[count].get()
                 
                 # Update the mean and variance with the results from this trajectory
                 # Note that these are counted at each time step in each trajectory
-                av[l] += dav
-                av2[l] += dav2
+                window.av += dav
+                window.av2 += dav2
+                window.count += dcount
                 
                 # Print the updated mean and variance to the log file
-                av_temp = av[l] / ((trajectory+1) * evolutionSteps)
-                av2_temp = av2[l] / ((trajectory+1) * evolutionSteps)
-                logging.info('{0:7d} {1:15.5e} {2:15.5e} {3:15.5e}'.format(trajectory+1, av_temp, av2_temp, av2_temp - av_temp * av_temp))
+                av_temp = window.av / window.count
+                av2_temp = window.av2 / window.count
+                logging.info('{0:5d} {1:11d} {2:15.8f} {3:15.8f} {4:15.5e}'.format(trajectory+1, window.count, av_temp, av2_temp, av2_temp - av_temp * av_temp))
     
                 count += 1
                 
-            logging.info('Finished processing trajectories at xi = {0:g}...'.format(xi_current))
+            logging.info('Finished processing trajectories at xi = {0:g}...'.format(window.xi))
             
-            f.write('{0:9.5f} {1:15.5e} {2:15.5e}\n'.format(xi_current, av_temp, av2_temp - av_temp * av_temp))
+            f.write('{0:9.5f} {1:15.5e} {2:15.5e}\n'.format(window.xi, av_temp, av2_temp - av_temp * av_temp))
                 
         f.close()
         
