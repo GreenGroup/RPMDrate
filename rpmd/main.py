@@ -134,19 +134,21 @@ class RPMD:
     
     """
 
-    def __init__(self, reactants, transitionStates, potential):
+    def __init__(self, label, T, reactants, transitionStates, potential):
         """
         Initialize an RPMD object. The `mass` of each atom should be given in
         g/mol, while the `Rinf` value should be given in angstroms. (They will
         be converted to atomic units.)
         """
+        self.label = label
+        self.T = float(quantity.convertTemperature(T, "K"))
         self.mass = reactants.mass
         self.Natoms = len(self.mass)
         self.reactants = reactants
         self.transitionStates = transitionStates or []
         self.potential = potential
         
-        self.beta = 0
+        self.beta = 4.35974417e-18 / (constants.kB * self.T)
         self.dt = 0
         self.Nbeads = 0
         self.xi_current = 0
@@ -228,7 +230,8 @@ class RPMD:
         transition_state.breaking_bonds[0:Nts,0:Nbreaking_bonds,:] = breakingBonds
         transition_state.breaking_bond_lengths[0:Nts,0:Nbreaking_bonds] = breakingBondLengths
     
-    def generateUmbrellaConfigurations(self, T, dt, 
+    def generateUmbrellaConfigurations(self, 
+                                       dt, 
                                        evolutionTime,
                                        xi_list,
                                        kforce,
@@ -242,12 +245,10 @@ class RPMD:
         initial position for determining the configuration in the next window.
         """
         
-        T = float(quantity.convertTemperature(T, "K"))
         dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
         evolutionTime = float(quantity.convertTime(evolutionTime, "ps")) / 2.418884326505e-5
         
         # Set the parameters for the RPMD calculation
-        self.beta = 4.35974417e-18 / (constants.kB * T)
         self.dt = dt
         self.Nbeads = 1
         xi_list = numpy.array(xi_list)
@@ -268,7 +269,7 @@ class RPMD:
         
         logging.info('Parameters')
         logging.info('==========')
-        logging.info('Temperature                             = {0:g} K'.format(T))
+        logging.info('Temperature                             = {0:g} K'.format(self.T))
         logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Number of umbrella integration windows  = {0:d}'.format(Nxi))
@@ -332,7 +333,9 @@ class RPMD:
                 logging.info('{0:5} {1:11.6f} {2:11.6f} {3:11.6f}'.format(self.reactants.atoms[j], q_current[0,j], q_current[1,j], q_current[2,j]))                
             logging.info('')
         
-    def conductUmbrellaSampling(self, T, Nbeads, dt, 
+    def conductUmbrellaSampling(self, 
+                                Nbeads, 
+                                dt, 
                                 windows,
                                 thermostat,
                                 processes=1,
@@ -346,12 +349,8 @@ class RPMD:
         if not self.umbrellaConfigurations:
             raise RPMDError('You must run generateUmbrellaConfigurations() before running computeStaticFactor().')
         
-        T = float(quantity.convertTemperature(T, "K"))
-        dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
-        
         # Set the parameters for the RPMD calculation
-        self.beta = 4.35974417e-18 / (constants.kB * T)
-        self.dt = dt
+        self.dt = dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
         self.Nbeads = Nbeads
         Nwindows = len(windows)
         self.thermostat = thermostat
@@ -368,7 +367,7 @@ class RPMD:
         
         logging.info('Parameters')
         logging.info('==========')
-        logging.info('Temperature                             = {0:g} K'.format(T))
+        logging.info('Temperature                             = {0:g} K'.format(self.T))
         logging.info('Number of beads                         = {0:d}'.format(Nbeads))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Number of umbrella integration windows  = {0:d}'.format(Nwindows))
@@ -430,7 +429,7 @@ class RPMD:
         
         logging.info('')
         
-    def computePotentialOfMeanForce(self, T, xi_min, xi_max, bins):
+    def computePotentialOfMeanForce(self, xi_min, xi_max, bins):
         """
         Compute the potential of mean force of the system at the given
         temperature by integrating over the given reaction coordinate range
@@ -441,9 +440,6 @@ class RPMD:
         if not self.umbrellaWindows:
             raise RPMDError('You must run conductUmbrellaSampling() before running computePotentialOfMeanForce().')
         
-        T = float(quantity.convertTemperature(T, "K"))
-        beta = 4.35974417e-18 / (constants.kB * T)
-
         logging.info('****************************')
         logging.info('RPMD potential of mean force')
         logging.info('****************************')
@@ -451,7 +447,7 @@ class RPMD:
         
         logging.info('Parameters')
         logging.info('==========')
-        logging.info('Temperature                             = {0:g} K'.format(T))
+        logging.info('Temperature                             = {0:g} K'.format(self.T))
         logging.info('Lower bound of reaction coordinate      = {0:g}'.format(xi_min))
         logging.info('Upper bound of reaction coordinate      = {0:g}'.format(xi_max))
         logging.info('Number of bins                          = {0:d}'.format(bins))
@@ -483,7 +479,7 @@ class RPMD:
                 xi_window = window.xi
                 kforce = window.kforce
                 p[l] = 1.0 / numpy.sqrt(2 * constants.pi * xi_var) * numpy.exp(-0.5 * (xi - xi_mean)**2 / xi_var) 
-                dA0[l] = (1.0 / beta) * (xi - xi_mean) / xi_var - kforce * (xi - xi_window)
+                dA0[l] = (1.0 / self.beta) * (xi - xi_mean) / xi_var - kforce * (xi - xi_window)
             dA[n] = numpy.sum(N * p * dA0) / numpy.sum(N * p)
             
         # Now integrate numerically to get the potential of mean force
@@ -505,7 +501,9 @@ class RPMD:
         logging.info('=========== ===========')
         logging.info('')
 
-    def computeTransmissionCoefficient(self, T, Nbeads, dt, 
+    def computeTransmissionCoefficient(self, 
+                                       Nbeads, 
+                                       dt, 
                                        equilibrationTime,
                                        childTrajectories,
                                        childrenPerSampling,
@@ -548,14 +546,12 @@ class RPMD:
             index = numpy.argmax(self.potentialOfMeanForce[1,:])
             xi_current = self.potentialOfMeanForce[0,index]
         
-        T = float(quantity.convertTemperature(T, "K"))
         dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
         equilibrationTime = float(quantity.convertTime(equilibrationTime, "ps")) / 2.418884326505e-5
         childEvolutionTime = float(quantity.convertTime(childEvolutionTime, "ps")) / 2.418884326505e-5
         childSamplingTime = float(quantity.convertTime(childSamplingTime, "ps")) / 2.418884326505e-5
 
         # Set the parameters for the RPMD calculation
-        self.beta = 4.35974417e-18 / (constants.kB * T)
         self.dt = dt
         self.Nbeads = Nbeads
         self.kforce = 0.0
@@ -579,7 +575,7 @@ class RPMD:
         
         logging.info('Parameters')
         logging.info('==========')
-        logging.info('Temperature                             = {0:g} K'.format(T))
+        logging.info('Temperature                             = {0:g} K'.format(self.T))
         logging.info('Number of beads                         = {0:d}'.format(Nbeads))
         logging.info('Reaction coordinate                     = {0:g}'.format(xi_current))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
@@ -692,16 +688,13 @@ class RPMD:
         
         return self.recrossingFactor
     
-    def computeRPMDRateCoefficient(self, T):
+    def computeRPMDRateCoefficient(self):
         """
         Compute the value of the RPMD rate coefficient.
         """
         
         if self.potentialOfMeanForce is None or self.recrossingFactor is None:
             raise RPMDError('You must run computePotentialOfMeanForce() and computeTransmissionCoefficient() before running computeRPMDRateCoefficient().')
-        
-        T = float(quantity.convertTemperature(T, "K"))
-        self.beta = 4.35974417e-18 / (constants.kB * T)
         
         logging.info('*********************')
         logging.info('RPMD rate coefficient')
@@ -710,7 +703,7 @@ class RPMD:
 
         logging.info('Parameters')
         logging.info('==========')
-        logging.info('Temperature                             = {0:g} K'.format(T))
+        logging.info('Temperature                             = {0:g} K'.format(self.T))
         logging.info('')
         
         fromAtomicUnits = 1e6 / ((5.2917721092e-11)**3 / 2.418884326505e-17)
