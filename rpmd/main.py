@@ -153,6 +153,8 @@ class RPMD:
         self.mode = 0
         
         self.umbrellaConfigurations = None
+        self.umbrellaWindows = None
+        self.potentialOfMeanForce = None
         
         self.initializeLog()
         
@@ -329,11 +331,11 @@ class RPMD:
                 logging.info('{0:5} {1:11.6f} {2:11.6f} {3:11.6f}'.format(self.reactants.atoms[j], q_current[0,j], q_current[1,j], q_current[2,j]))                
             logging.info('')
         
-    def computeStaticFactor(self, T, Nbeads, dt, 
-                            windows,
-                            thermostat,
-                            processes=1,
-                            saveTrajectories=False):
+    def conductUmbrellaSampling(self, T, Nbeads, dt, 
+                                windows,
+                                thermostat,
+                                processes=1,
+                                saveTrajectories=False):
         """
         Return the value of the static factor :math:`p^{(n)}(s_1, s_0)` as
         computed using umbrella integration.
@@ -372,6 +374,8 @@ class RPMD:
         logging.info('')
 
         self.activate()
+
+        self.umbrellaWindows = windows
 
         # Spawn a number of sampling trajectories in each window
         for window in windows:
@@ -423,6 +427,83 @@ class RPMD:
                 
         f.close()
         
+        logging.info('')
+        
+    def computePotentialOfMeanForce(self, T, xi_min, xi_max, bins):
+        """
+        Compute the potential of mean force of the system at the given
+        temperature by integrating over the given reaction coordinate range
+        using the given number of bins. This requires that you have previously
+        used umbrella sampling to determine the mean and variance in each bin.
+        """
+        # Don't continue if the user hasn't generated the umbrella sampling yet
+        if not self.umbrellaWindows:
+            raise RPMDError('You must run conductUmbrellaSampling() before running computePotentialOfMeanForce().')
+        
+        T = float(quantity.convertTemperature(T, "K"))
+        beta = 4.35974417e-18 / (constants.kB * T)
+
+        logging.info('****************************')
+        logging.info('RPMD potential of mean force')
+        logging.info('****************************')
+        logging.info('')
+        
+        logging.info('Parameters')
+        logging.info('==========')
+        logging.info('Temperature                             = {0:g} K'.format(T))
+        logging.info('Lower bound of reaction coordinate      = {0:g}'.format(xi_min))
+        logging.info('Upper bound of reaction coordinate      = {0:g}'.format(xi_max))
+        logging.info('Number of bins                          = {0:d}'.format(bins))
+        logging.info('')
+        
+        Nwindows = len(self.umbrellaWindows)
+        
+        xi_list = numpy.linspace(xi_min, xi_max, bins, True)
+        
+        # Count the number of bins in each window
+        N = numpy.zeros(Nwindows)
+        for l in range(1, Nwindows-1):
+            xi_left = 0.5 * (self.umbrellaWindows[l-1].xi + self.umbrellaWindows[l].xi)
+            xi_right = 0.5 * (self.umbrellaWindows[l].xi + self.umbrellaWindows[l+1].xi)
+            N[l] = sum([1 for xi in xi_list if xi_left <= xi < xi_right])
+        xi_right = 0.5 * (self.umbrellaWindows[0].xi + self.umbrellaWindows[1].xi)
+        N[0] = sum([1 for xi in xi_list if xi < xi_right])
+        xi_left = 0.5 * (self.umbrellaWindows[-1].xi + self.umbrellaWindows[-2].xi)
+        N[-1] = sum([1 for xi in xi_list if xi_left <= xi])
+        
+        # Compute the slope in each bin
+        dA = numpy.zeros(bins)
+        p = numpy.zeros(Nwindows)
+        dA0 = numpy.zeros(Nwindows)
+        for n, xi in enumerate(xi_list):
+            for l, window in enumerate(self.umbrellaWindows):
+                xi_mean = window.av / window.count
+                xi_var = window.av2 / window.count
+                xi_window = window.xi
+                kforce = window.kforce
+                p[l] = 1.0 / numpy.sqrt(2 * constants.pi * xi_var) * numpy.exp(-0.5 * (xi - xi_mean)**2 / xi_var) 
+                dA0[l] = (1.0 / beta) * (xi - xi_mean) / xi_var - kforce * (xi - xi_window)
+            dA[n] = numpy.sum(N * p * dA0) / numpy.sum(N * p)
+            
+        # Now integrate numerically to get the potential of mean force
+        self.potentialOfMeanForce = numpy.zeros((2,bins))
+        for n, xi in enumerate(xi_list):
+            self.potentialOfMeanForce[0,n] = xi_list[n]
+            self.potentialOfMeanForce[1,n] = numpy.trapz(dA[:n], xi_list[:n])
+             
+        logging.info('Result of potential of mean force calculation:')
+        logging.info('')
+        logging.info('=========== ===========')
+        logging.info('Rxn coord   PMF (eV)')
+        logging.info('=========== ===========')
+        for n in range(0, self.potentialOfMeanForce.shape[1], 10):
+            logging.info('{0:11.6f} {1:11.6f}'.format(
+                self.potentialOfMeanForce[0,n],
+                self.potentialOfMeanForce[1,n] * 27.211,
+            ))
+        logging.info('=========== ===========')
+        logging.info('')
+
     def computeTransmissionCoefficient(self, T, Nbeads, dt, 
                                        equilibrationTime,
                                        xi_current,
