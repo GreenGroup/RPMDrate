@@ -272,6 +272,22 @@ python module _main ! in
                 double precision dimension(3,natoms,3,natoms),intent(out),depend(natoms,natoms) :: d2s1
             end subroutine evaluate
         end module reactants
+        subroutine random_init ! in :_main:rpmd/_math.f90
+        end subroutine random_init
+        subroutine random(rn) ! in :_main:rpmd/_math.f90
+            double precision intent(out) :: rn
+        end subroutine random
+        subroutine randomn(rn) ! in :_main:rpmd/_math.f90
+            double precision intent(out) :: rn
+        end subroutine randomn
+        subroutine rfft(x,n) ! in :_main:rpmd/_math.f90
+            double precision dimension(n),intent(inout) :: x
+            integer, optional,intent(in),check(len(x)>=n),depend(x) :: n=len(x)
+        end subroutine rfft
+        subroutine irfft(x,n) ! in :_main:rpmd/_math.f90
+            double precision dimension(n),intent(inout) :: x
+            integer, optional,intent(in),check(len(x)>=n),depend(x) :: n=len(x)
+        end subroutine irfft
     end interface 
 end python module _main
 

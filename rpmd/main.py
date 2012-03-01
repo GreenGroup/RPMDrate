@@ -281,6 +281,9 @@ class RPMD:
         self.Nbeads = 1
         self.activate()
 
+        # Seed the random number generator
+        random_init()
+
         # Generate initial position using transition state geometry
         # (All beads start at same position)
         q = numpy.zeros((3,self.Natoms,self.Nbeads), order='F')
@@ -374,6 +377,9 @@ class RPMD:
         logging.info('')
 
         self.activate()
+
+        # Seed the random number generator
+        random_init()
 
         self.umbrellaWindows = windows
 
@@ -588,6 +594,9 @@ class RPMD:
         
         self.activate()
         
+        # Seed the random number generator
+        random_init()
+
         # Generate initial position using transition state geometry
         # (All beads start at same position)
         q = numpy.zeros((3,self.Natoms,self.Nbeads), order='F')
