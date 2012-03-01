@@ -506,13 +506,13 @@ class RPMD:
 
     def computeTransmissionCoefficient(self, T, Nbeads, dt, 
                                        equilibrationTime,
-                                       xi_current,
                                        childTrajectories,
                                        childrenPerSampling,
                                        childEvolutionTime,
                                        childSamplingTime,
                                        thermostat,
                                        processes=1,
+                                       xi_current=None,
                                        saveParentTrajectory=False, 
                                        saveChildTrajectories=False):
         """
@@ -539,6 +539,13 @@ class RPMD:
         as XYZ data files for later visualization in programs such as VMD.
         This is off by default because it is very slow. 
         """
+        
+        # If xi_current not specified, use the maximum of the potential of mean force
+        if xi_current is None:
+            if self.potentialOfMeanForce is None:
+                raise RPMDError('You must run computePotentialOfMeanForce() or specify xi_current before running computeTransmissionCoefficient().')
+            index = numpy.argmax(self.potentialOfMeanForce[1,:])
+            xi_current = self.potentialOfMeanForce[0,index]
         
         T = float(quantity.convertTemperature(T, "K"))
         dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
