@@ -155,6 +155,7 @@ class RPMD:
         self.umbrellaConfigurations = None
         self.umbrellaWindows = None
         self.potentialOfMeanForce = None
+        self.recrossingFactor = None
         
         self.initializeLog()
         
@@ -687,7 +688,65 @@ class RPMD:
         logging.info('Final value of transmission coefficient = {0:.6f}'.format(kappa_num[-1] / kappa_denom))
         logging.info('')
         
-        return kappa_num[-1] / kappa_denom
+        self.recrossingFactor = kappa_num[-1] / kappa_denom
+        
+        return self.recrossingFactor
+    
+    def computeRPMDRateCoefficient(self, T):
+        """
+        Compute the value of the RPMD rate coefficient.
+        """
+        
+        if self.potentialOfMeanForce is None or self.recrossingFactor is None:
+            raise RPMDError('You must run computePotentialOfMeanForce() and computeTransmissionCoefficient() before running computeRPMDRateCoefficient().')
+        
+        T = float(quantity.convertTemperature(T, "K"))
+        self.beta = 4.35974417e-18 / (constants.kB * T)
+        
+        logging.info('*********************')
+        logging.info('RPMD rate coefficient')
+        logging.info('*********************')
+        logging.info('')
+
+        logging.info('Parameters')
+        logging.info('==========')
+        logging.info('Temperature                             = {0:g} K'.format(T))
+        logging.info('')
+        
+        fromAtomicUnits = 1e6 / ((5.2917721092e-11)**3 / 2.418884326505e-17)
+        
+        # Compute the rate coefficient using the reactant dividing surface
+        Rinf = self.reactants.Rinf
+        mA = self.reactants.totalMass1
+        mB = self.reactants.totalMass2
+        mu = mA * mB / (mA + mB)
+        k_QTST = 4 * constants.pi * Rinf * Rinf / numpy.sqrt(2 * constants.pi * self.beta * mu)
+        
+        logging.info('Result of RPMD rate coefficient calculation:')
+        logging.info('')
+        logging.info('k(T;s0) (QTST)                          = {0:g} cm^3/(mol*s)'.format(k_QTST * fromAtomicUnits))
+        
+        # Compute the static factor
+        W1 = numpy.max(self.potentialOfMeanForce[1,:])
+        W0 = self.potentialOfMeanForce[1,0]
+        staticFactor = numpy.exp(-self.beta * (W1 - W0))
+        
+        # Correct the rate coefficient to the transition state dividing surface
+        k_QTST *= staticFactor
+        
+        # Correct the rate coefficient for recrossings
+        k_RPMD = k_QTST * self.recrossingFactor
+        
+        logging.info('Static factor                           = {0:g}'.format(staticFactor))
+        logging.info('k(T;s1) (QTST)                          = {0:g} cm^3/(mol*s)'.format(k_QTST * fromAtomicUnits))
+        logging.info('Dynamic (recrossing) factor             = {0:g}'.format(self.recrossingFactor))
+        logging.info('k(T) (RPMD)                             = {0:g} cm^3/(mol*s)'.format(k_RPMD * fromAtomicUnits))
+        logging.info('')
+        
+        logging.info('Final value of rate coefficient = {0:g} cm^3/(mol*s)'.format(k_RPMD * fromAtomicUnits))
+        logging.info('')
+
+        return k_RPMD
     
     def sampleMomentum(self):
         """
