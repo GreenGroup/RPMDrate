@@ -50,22 +50,17 @@ class TestTransitionState(unittest.TestCase):
         A function run before each unit test in this class.
         """
         # This is a TS geometry for H + CH4 obtained at the CBS-QB3 level
-        self.geometry = numpy.array([
+        self.geometry = numpy.array(
             [[ 0.0000,  0.0000,  0.0000], 
              [ 0.0141, -0.0309,  1.0852], 
              [ 1.0023, -0.0035,  1.5341], 
              [-0.5350,  1.2264,  1.4469], 
              [-0.6769, -0.7373,  1.5351], 
-             [-0.8793,  2.0147,  1.6736]],       
-        ]).T * 0.52918
-        self.formingBonds = numpy.array([
-            [(4,6)],
-        ], numpy.int)
-        self.breakingBonds = numpy.array([
-            [(2,4)],
-        ], numpy.int)
+             [-0.8793,  2.0147,  1.6736]], order='F')
+        self.formingBonds = numpy.array([(4,6)], numpy.int)
+        self.breakingBonds = numpy.array([(2,4)], numpy.int)
         self.transitionState = TransitionState(
-            geometry = self.geometry,
+            geometry = (self.geometry,"angstrom"),
             formingBonds = self.formingBonds,
             breakingBonds = self.breakingBonds,
         )
@@ -79,7 +74,7 @@ class TestTransitionState(unittest.TestCase):
             [-0.4801,  1.1007,  1.4107], 
             [-0.6769, -0.7373,  1.5351], 
             [-0.8793,  2.0147,  1.6736],       
-        ]).T * 0.52918
+        ], order='F').T / 0.52918
         # This geometry moves the intermediate H farther from the C and closer
         # to the H (i.e. toward the "products" H2 + CH3)
         self.productGeometry = numpy.array([
@@ -89,7 +84,7 @@ class TestTransitionState(unittest.TestCase):
             [-0.5899,  1.3521,  1.4831], 
             [-0.6769, -0.7373,  1.5351], 
             [-0.8793,  2.0147,  1.6736],       
-        ]).T * 0.52918
+        ], order='F').T / 0.52918
     
     def test_geometry(self):
         """
@@ -97,7 +92,6 @@ class TestTransitionState(unittest.TestCase):
         """
         self.assertEqual(self.transitionState.geometry.shape[0], 3)
         self.assertEqual(self.transitionState.geometry.shape[1], 6)
-        self.assertEqual(self.transitionState.geometry.shape[2], 1)
         
     def test_value_reactants(self):
         """
@@ -111,8 +105,8 @@ class TestTransitionState(unittest.TestCase):
         Test the TransitionState.value() method for a geometry on the
         dividing surface.
         """
-        geometry = self.geometry[:,:,0]
-        self.assertTrue(abs(self.transitionState.value(geometry)) < 1e-8)
+        geometry = self.geometry.T / 0.52918
+        self.assertTrue(abs(self.transitionState.value(geometry)) < 1e-4)
 
     def test_value_products(self):
         """
@@ -127,7 +121,7 @@ class TestTransitionState(unittest.TestCase):
         numerical gradient.
         """
         dx = 0.0001
-        geometry0 = self.geometry[:,:,0]
+        geometry0 = self.geometry.T / 0.52918
         gradient = self.transitionState.gradient(geometry0)
         for i in range(3):
             for j in range(6):
@@ -149,7 +143,7 @@ class TestTransitionState(unittest.TestCase):
         numerical gradient.
         """
         dx = 0.0002; dy = 0.0001
-        geometry0 = self.geometry[:,:,0]
+        geometry0 = self.geometry.T / 0.52918
         hessian = self.transitionState.hessian(geometry0)
         for i1 in range(3):
             for j1 in range(6):
@@ -185,10 +179,10 @@ class TestReactants(unittest.TestCase):
         A function run before each unit test in this class.
         """
         self.reactants = Reactants(
-            mass = numpy.array([1.007825, 1.007825, 1.007825]),
+            atoms = ['H', 'H', 'H'],
             reactant1Atoms = [1],
             reactant2Atoms = [2,3],
-            Rinf = 5,
+            Rinf = (5,"angstrom"),
         )
         self.position = numpy.array([
             [ 0.02,  0.04,  -0.929764], 

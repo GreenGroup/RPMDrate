@@ -21,6 +21,8 @@ python module _main ! in
             integer, parameter,optional :: max_atoms=100
             double precision :: dt
             double precision, optional :: pi=dacos(-1.0d0)
+            integer :: thermostat
+            double precision :: andersen_sampling_time
             subroutine equilibrate(t,p,q,natoms,nbeads,steps,xi_current,potential,kforce,constrain,save_trajectory,result) ! in :_main:rpmd/_main.f90:system
                 use _main__user__routines
                 double precision intent(inout) :: t
