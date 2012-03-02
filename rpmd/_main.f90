@@ -113,9 +113,7 @@ contains
 
             ! Apply Andersen thermostat (if turned on)
             if (thermostat .eq. 1) then
-                if (andersen_sampling_time .gt. 0) then
-                    if (mod(step, andersen_sampling_steps) .eq. 0) call sample_momentum(p, mass, beta, Natoms, Nbeads)
-                end if
+                if (mod(step, andersen_sampling_steps) .eq. 0) call sample_momentum(p, mass, beta, Natoms, Nbeads)
             end if
 
         end do
@@ -246,9 +244,7 @@ contains
 
             ! Apply Andersen thermostat (if turned on)
             if (thermostat .eq. 1) then
-                if (andersen_sampling_time .gt. 0) then
-                    if (mod(step, andersen_sampling_steps) .eq. 0) call sample_momentum(p, mass, beta, Natoms, Nbeads)
-                end if
+                if (mod(step, andersen_sampling_steps) .eq. 0) call sample_momentum(p, mass, beta, Natoms, Nbeads)
             end if
 
         end do
