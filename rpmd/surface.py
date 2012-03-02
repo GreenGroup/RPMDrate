@@ -100,8 +100,8 @@ class TransitionState:
         Set this object as the active transition state dividing surface in the
         Fortran layer.
         """
-        Nforming_bonds = self.formingBonds.shape[1]
-        Nbreaking_bonds = self.breakingBonds.shape[1]
+        Nforming_bonds = self.formingBonds.shape[0]
+        Nbreaking_bonds = self.breakingBonds.shape[0]
 
         if module is None: module = transition_state
 

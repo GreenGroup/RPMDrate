@@ -208,8 +208,8 @@ class RPMD:
         self.thermostat.activate(module=system)
         
         Nts = len(self.transitionStates)
-        Nforming_bonds = max([ts.formingBonds.shape[1] for ts in self.transitionStates])
-        Nbreaking_bonds = max([ts.breakingBonds.shape[1] for ts in self.transitionStates])
+        Nforming_bonds = max([ts.formingBonds.shape[0] for ts in self.transitionStates])
+        Nbreaking_bonds = max([ts.breakingBonds.shape[0] for ts in self.transitionStates])
 
         formingBonds = numpy.zeros((Nts,Nforming_bonds,2))
         breakingBonds = numpy.zeros((Nts,Nbreaking_bonds,2))
