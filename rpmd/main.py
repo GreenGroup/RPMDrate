@@ -57,6 +57,8 @@ def runUmbrellaTrajectory(rpmd, xi_current, p, q, equilibrationSteps, evolutionS
     first and second moments of the reaction coordinate at each time step.
     """
     rpmd.activate()
+    p = numpy.asfortranarray(p)
+    q = numpy.asfortranarray(q)
     result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, rpmd.potential, kforce, False, saveTrajectory)
     dav, dav2, result = system.umbrella_trajectory(0, p, q, evolutionSteps, xi_current, rpmd.potential, kforce, saveTrajectory)
     return dav, dav2, evolutionSteps
@@ -68,6 +70,8 @@ def runRecrossingTrajectory(rpmd, xi_current, p, q, evolutionSteps, saveTrajecto
     from this trajectory.
     """
     rpmd.activate()
+    p = numpy.asfortranarray(p)
+    q = numpy.asfortranarray(q)
     kappa_num = numpy.zeros(evolutionSteps, order='F')
     kappa_denom = numpy.array(0.0, order='F')
     result = system.recrossing_trajectory(0, p, q, xi_current, rpmd.potential, saveTrajectory, kappa_num, kappa_denom)
