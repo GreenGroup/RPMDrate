@@ -463,16 +463,10 @@ class RPMD:
         
         xi_list = numpy.linspace(xi_min, xi_max, bins, True)
         
-        # Count the number of bins in each window
+        # Count the number of sampling points in each window
         N = numpy.zeros(Nwindows)
-        for l in range(1, Nwindows-1):
-            xi_left = 0.5 * (self.umbrellaWindows[l-1].xi + self.umbrellaWindows[l].xi)
-            xi_right = 0.5 * (self.umbrellaWindows[l].xi + self.umbrellaWindows[l+1].xi)
-            N[l] = sum([1 for xi in xi_list if xi_left <= xi < xi_right])
-        xi_right = 0.5 * (self.umbrellaWindows[0].xi + self.umbrellaWindows[1].xi)
-        N[0] = sum([1 for xi in xi_list if xi < xi_right])
-        xi_left = 0.5 * (self.umbrellaWindows[-1].xi + self.umbrellaWindows[-2].xi)
-        N[-1] = sum([1 for xi in xi_list if xi_left <= xi])
+        for l in range(Nwindows):
+            N[l] = self.umbrellaWindows[l].count
         
         # Compute the slope in each bin
         dA = numpy.zeros(bins)
@@ -480,8 +474,10 @@ class RPMD:
         dA0 = numpy.zeros(Nwindows)
         for n, xi in enumerate(xi_list):
             for l, window in enumerate(self.umbrellaWindows):
-                xi_mean = window.av / window.count
-                xi_var = window.av2 / window.count
+                av = window.av / window.count
+                av2 = window.av2 / window.count
+                xi_mean = av
+                xi_var = av2 - av * av
                 xi_window = window.xi
                 kforce = window.kforce
                 p[l] = 1.0 / numpy.sqrt(2 * constants.pi * xi_var) * numpy.exp(-0.5 * (xi - xi_mean)**2 / xi_var) 
