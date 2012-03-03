@@ -51,13 +51,12 @@ class RPMDError(Exception):
 
 ################################################################################
 
-def runUmbrellaTrajectory(rpmd, xi_current, q, equilibrationSteps, evolutionSteps, kforce, saveTrajectory):
+def runUmbrellaTrajectory(rpmd, xi_current, p, q, equilibrationSteps, evolutionSteps, kforce, saveTrajectory):
     """
     Run an individual umbrella integration trajectory, returning the sum of the
     first and second moments of the reaction coordinate at each time step.
     """
     rpmd.activate()
-    p = rpmd.sampleMomentum()
     result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, rpmd.potential, kforce, False, saveTrajectory)
     dav, dav2, result = system.umbrella_trajectory(0, p, q, evolutionSteps, xi_current, rpmd.potential, kforce, saveTrajectory)
     return dav, dav2, evolutionSteps
@@ -363,9 +362,9 @@ class RPMD:
         pool = multiprocessing.Pool(processes=processes)
         results = []
 
-        logging.info('******************')
-        logging.info('RPMD static factor')
-        logging.info('******************')
+        logging.info('**********************')
+        logging.info('RPMD umbrella sampling')
+        logging.info('**********************')
         logging.info('')
         
         logging.info('Parameters')
@@ -397,9 +396,18 @@ class RPMD:
             for k in range(self.Nbeads):
                 q[:,:,k] = q_initial
             
+            # Spawn sampling trajectories in this window
+            # In order to get better statistics (and therefore faster
+            # convergence), we want to give each trajectory a unique initial
+            # position and momentum
+            # To do this, we spawn one trajectory after each equilibration
+            # period, giving up a (small) bit of parallelization in the name of
+            # better statistics in the sampling
             logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(window.trajectories, window.xi))
-            args = (self, window.xi, q, equilibrationSteps, evolutionSteps, window.kforce, saveTrajectories)
             for trajectory in range(window.trajectories):
+                p = self.sampleMomentum()
+                result = system.equilibrate(0, p, q, equilibrationSteps, window.xi, self.potential, window.kforce, False, False)
+                args = (self, window.xi, p, q, 0, evolutionSteps, window.kforce, saveTrajectories)
                 results.append(pool.apply_async(runUmbrellaTrajectory, args))           
 
         logging.info('')
