@@ -282,6 +282,10 @@ class RPMD:
         logging.info('Trajectory evolution time               = {0:g} ps ({1:d} steps)'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
         logging.info('')
 
+        # Set up output files and directory
+        workingDirectory = self.createWorkingDirectory()
+        configurationsFilename = os.path.join(workingDirectory, 'umbrella_configurations.dat')
+
         # Only use one bead to generate initial positions in each window
         # (We will equilibrate within each window to allow the beads to separate)
         self.Nbeads = 1
@@ -342,6 +346,8 @@ class RPMD:
                 logging.info('{0:5} {1:11.6f} {2:11.6f} {3:11.6f}'.format(self.reactants.atoms[j], q_current[0,j], q_current[1,j], q_current[2,j]))                
             logging.info('')
         
+        self.saveUmbrellaConfigurations(configurationsFilename, evolutionSteps)
+    
     def conductUmbrellaSampling(self, 
                                 Nbeads, 
                                 dt, 
@@ -748,6 +754,32 @@ class RPMD:
         # Return the full path to the chosen working directory 
         return os.path.abspath(workingDirectory)
 
+    def saveUmbrellaConfigurations(self, path, evolutionSteps):
+        """
+        Save the results of an umbrella configurations calculation to `path` on
+        disk. This serves as both a record of the calculation and a means of
+        restarting an incomplete calculation.
+        """
+        f = open(path, 'w')
+        
+        f.write('****************************\n')
+        f.write('RPMD umbrella configurations\n')
+        f.write('****************************\n\n')
+
+        f.write('Temperature                             = {0:g} K\n'.format(self.T))
+        f.write('Number of beads                         = {0:d}\n'.format(self.Nbeads))
+        f.write('Time step                               = {0:g} ps\n'.format(self.dt * 2.418884326505e-5))
+        f.write('Number of umbrella integration windows  = {0:d}\n'.format(len(self.umbrellaConfigurations)))
+        f.write('Trajectory evolution time               = {0:g} ps ({1:d} steps)\n\n'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
+        
+        for xi, q in self.umbrellaConfigurations:
+            f.write('xi = {0:g}\n'.format(xi))
+            for j in range(self.Natoms):
+                f.write('{0:5} {1:11.6f} {2:11.6f} {3:11.6f}\n'.format(self.reactants.atoms[j], q[0,j], q[1,j], q[2,j]))                
+            f.write('\n')
+        
+        f.close()
+        
     def saveRecrossingFactor(self, path, kappa_num, kappa_denom, trajectoryCount,
                              childTrajectories, equilibrationSteps, 
                              childSamplingSteps, childEvolutionSteps, 
