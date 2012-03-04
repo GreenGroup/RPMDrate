@@ -29,6 +29,8 @@
 #
 ################################################################################
 
+import os
+import os.path
 import sys
 import math
 import numpy
@@ -137,7 +139,7 @@ class RPMD:
     
     """
 
-    def __init__(self, label, T, reactants, transitionStates, potential):
+    def __init__(self, label, T, reactants, transitionStates, potential, outputDirectory='.'):
         """
         Initialize an RPMD object. The `mass` of each atom should be given in
         g/mol, while the `Rinf` value should be given in angstroms. (They will
@@ -150,6 +152,7 @@ class RPMD:
         self.reactants = reactants
         self.transitionStates = transitionStates or []
         self.potential = potential
+        self.outputDirectory = os.path.abspath(outputDirectory)
         
         self.beta = 4.35974417e-18 / (constants.kB * self.T)
         self.dt = 0
@@ -574,6 +577,10 @@ class RPMD:
         self.thermostat = thermostat
         self.mode = 2
         
+        # Set up output files and directory
+        workingDirectory = self.createWorkingDirectory()
+        recrossingFilename = os.path.join(workingDirectory, 'recrossing_factor_{0:d}.dat'.format(Nbeads))
+
         # Create a pool of subprocesses to farm out the individual trajectories to
         pool = multiprocessing.Pool(processes=processes)
         results = []
@@ -661,14 +668,8 @@ class RPMD:
         
             logging.info('Finished sampling {0} child trajectories at {1:g} ps.'.format(childrenPerSampling, parentIter * childSamplingSteps * self.dt * 2.418884326505e-5))
             
-            f = open('recrossing_factor.dat', 'w')
-            for childStep in range(childEvolutionSteps):
-                f.write('{0:11.3f} {1:11.6f} {2:11.6f}\n'.format(
-                    childStep * self.dt * 2.418884326505e-2,
-                    kappa_num[childStep] / kappa_denom,
-                    kappa_num[childStep] / ((parentIter+1) * childrenPerSampling),
-                ))
-            f.close()
+            self.saveRecrossingFactor(recrossingFilename, kappa_num, kappa_denom, childCount,
+                childTrajectories, equilibrationSteps, childSamplingSteps, childEvolutionSteps, childrenPerSampling)
             
             logging.info('Current value of transmission coefficient = {0:.6f}'.format(kappa_num[-1] / kappa_denom))
             logging.info('')
@@ -704,6 +705,70 @@ class RPMD:
         self.recrossingFactor = kappa_num[-1] / kappa_denom
         
         return self.recrossingFactor
+
+    def createWorkingDirectory(self, path=None):
+        """
+        Create the directory used for saving the calculation output. If not
+        explicitly defined, the directory is created as a subdirectory of the
+        specified output directory based on the current temperature.
+        """
+        if path is not None:
+            workingDirectory = path
+        else:
+            workingDirectory = os.path.join(self.outputDirectory, '{0:g}'.format(self.T))
+            
+        # Create the working directory on disk
+        try:
+            os.makedirs(workingDirectory)
+        except OSError:
+            pass
+        
+        # Return the full path to the chosen working directory 
+        return os.path.abspath(workingDirectory)
+
+    def saveRecrossingFactor(self, path, kappa_num, kappa_denom, trajectoryCount,
+                             childTrajectories, equilibrationSteps, 
+                             childSamplingSteps, childEvolutionSteps, 
+                             childrenPerSampling):
+        """
+        Save the results of a recrossing factor calculation to `path` on disk.
+        This serves as both a record of the calculation and a means of
+        restarting an incomplete calculation.
+        """
+        f = open(path, 'w')
+        
+        f.write('**********************\n')
+        f.write('RPMD recrossing factor\n')
+        f.write('**********************\n\n')
+        
+        f.write('Temperature                             = {0:g} K\n'.format(self.T))
+        f.write('Number of beads                         = {0:d}\n'.format(self.Nbeads))
+        f.write('Reaction coordinate                     = {0:.6f}\n'.format(self.xi_current))
+        f.write('Time step                               = {0:g} ps\n'.format(self.dt * 2.418884326505e-5))
+        f.write('Total number of child trajectories      = {0:d}\n'.format(childTrajectories))
+        f.write('Initial parent equilibration time       = {0:g} ps ({1:d} steps)\n'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
+        f.write('Frequency of child trajectory sampling  = {0:g} ps ({1:d} steps)\n'.format(childSamplingSteps * self.dt * 2.418884326505e-5, childSamplingSteps))
+        f.write('Length of child trajectories            = {0:g} ps ({1:d} steps)\n'.format(childEvolutionSteps * self.dt * 2.418884326505e-5, childEvolutionSteps))
+        f.write('Number of children per sampling         = {0:d}\n\n'.format(childrenPerSampling))
+        
+        kappa_denom = float(kappa_denom)
+        
+        f.write('========= ============= ============= ========= =========== ===========\n')
+        f.write('Time (fs) kappa_num     kappa_denom   count     kappa (old) kappa (new)\n')
+        f.write('========= ============= ============= ========= =========== ===========\n')
+        for n in range(kappa_num.shape[0]):
+            f.write('{0:9.3f} {1:13.4f} {2:13.4f} {3:9d} {4:11.6f} {5:11.6f}\n'.format(
+                n * self.dt * 2.418884326505e-2,
+                kappa_num[n],
+                kappa_denom,
+                trajectoryCount,
+                kappa_num[n] / trajectoryCount,
+                kappa_num[n] / kappa_denom,
+            ))
+        f.write('========= ============= ============= ========= =========== ===========\n')
+        
+        f.close()
+    
     
     def computeRPMDRateCoefficient(self):
         """
