@@ -414,6 +414,23 @@ class RPMD:
         workingDirectory = self.createWorkingDirectory()
         umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:d}.dat'.format(self.Nbeads))
 
+        # Look for existing output file for this calculation
+        # If a file exists, we won't repeat the calculation
+        if os.path.exists(umbrellaFilename):
+            logging.info('Loading saved output from {0}'.format(umbrellaFilename))
+            xi_list0, av_list0, av2_list0, count_list0 = self.loadUmbrellaSampling(umbrellaFilename)
+            Nxi0 = xi_list0.shape[0]
+            for window in windows:
+                for l in range(Nxi0):
+                    if abs(xi_list0[l] - window.xi) < 1e-6:
+                        window.av += av_list0[l]
+                        window.av2 += av2_list0[l]
+                        window.count += count_list0[l]
+                        break
+        else:
+            logging.info('Output will be saved to {0}'.format(umbrellaFilename))
+        logging.info('')
+        
         self.activate()
 
         # Seed the random number generator
@@ -442,15 +459,21 @@ class RPMD:
             # To do this, we spawn one trajectory after each equilibration
             # period, giving up a (small) bit of parallelization in the name of
             # better statistics in the sampling
-            logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(window.trajectories, window.xi))
+            windowEvolutionSteps = evolutionSteps - int(numpy.ceil(float(window.count) / window.trajectories))
+            windowEquilibrationSteps = equilibrationSteps
+            if windowEvolutionSteps <= 0:
+                logging.info('Already sampled enough trajectories at xi = {1:g}.'.format(window.trajectories, window.xi))
+                windowEquilibrationSteps = 0
+            else:
+                logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(window.trajectories, window.xi))
             for trajectory in range(window.trajectories):
                 p = self.sampleMomentum()
-                result = system.equilibrate(0, p, q, equilibrationSteps, window.xi, self.potential, window.kforce, False, False)
-                args = (self, window.xi, p, q, 0, evolutionSteps, window.kforce, saveTrajectories)
+                result = system.equilibrate(0, p, q, windowEquilibrationSteps, window.xi, self.potential, window.kforce, False, False)
+                args = (self, window.xi, p, q, 0, windowEvolutionSteps, window.kforce, saveTrajectories)
                 results.append(pool.apply_async(runUmbrellaTrajectory, args))           
 
         logging.info('')
-                    
+                 
         # Wait for each trajectory to finish, then update the mean and variance
         count = 0
         f = open(umbrellaFilename, 'w')
@@ -484,7 +507,8 @@ class RPMD:
                 # Print the updated mean and variance to the log file
                 av_temp = window.av / window.count
                 av2_temp = window.av2 / window.count
-                logging.info('{0:5d} {1:11d} {2:15.8f} {3:15.8f} {4:15.5e}'.format(trajectory+1, window.count, av_temp, av2_temp, av2_temp - av_temp * av_temp))
+                if dcount > 0:
+                    logging.info('{0:5d} {1:11d} {2:15.8f} {3:15.8f} {4:15.5e}'.format(trajectory+1, window.count, av_temp, av2_temp, av2_temp - av_temp * av_temp))
     
                 count += 1
                 
@@ -877,6 +901,64 @@ class RPMD:
         f.close()
         
         return xi_list, q_list, evolutionSteps
+        
+    def loadUmbrellaSampling(self, path):
+        """
+        Load the results of an umbrella sampling calculation from `path` on
+        disk. This can be useful both as a means of postprocessing results
+        at a later date and for restarting an incomplete calculation.
+        """
+        
+        f = open(path, 'r')
+
+        # Header
+        f.readline()
+        jobtype = f.readline()
+        if jobtype.strip() != 'RPMD umbrella sampling':
+            raise RPMDError('{0} is not a valid RPMD umbrella sampling output file.'.format(jobtype))
+        f.readline()
+        f.readline()
+        
+        # Parameters
+        line = f.readline()
+        while line.strip() != '':
+            param, data = line.split('=')
+            param = param.strip()
+            data = data.split()
+            if param == 'Temperature':
+                T = float(data[0])
+            elif param == 'Number of beads':
+                Nbeads = int(data[0])
+            elif param == 'Time step':
+                dt = float(data[0]) / 2.418884326505e-5
+            elif param == 'Number of umbrella integration windows':
+                Nxi = int(data[0])
+            else:
+                raise RPMDError('Invalid umbrella configurations parameter {0!r}.'.format(param))
+            line = f.readline()
+        
+        # Data
+        xi_list = []; av_list = []; av2_list = []; count_list = []
+        line = f.readline()
+        line = f.readline()
+        line = f.readline()
+        line = f.readline()
+        while line != '' and len(line) > 8 and line[0:8] != '========':
+            xi, av, av2, count, xi_mean, xi_var = line.split()
+            xi_list.append(float(xi))
+            av_list.append(float(av))
+            av2_list.append(float(av2))
+            count_list.append(int(count))
+            line = f.readline().strip()
+        
+        xi_list = numpy.array(xi_list)
+        av_list = numpy.array(av_list)
+        av2_list = numpy.array(av2_list)
+        count_list = numpy.array(count_list)
+        
+        f.close()
+        
+        return xi_list, av_list, av2_list, count_list
         
     def saveRecrossingFactor(self, path, kappa_num, kappa_denom, trajectoryCount,
                              childTrajectories, equilibrationSteps, 
