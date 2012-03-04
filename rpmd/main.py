@@ -410,6 +410,10 @@ class RPMD:
         logging.info('Number of umbrella integration windows  = {0:d}'.format(Nwindows))
         logging.info('')
 
+        # Set up output files and directory
+        workingDirectory = self.createWorkingDirectory()
+        umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:d}.dat'.format(self.Nbeads))
+
         self.activate()
 
         # Seed the random number generator
@@ -449,7 +453,21 @@ class RPMD:
                     
         # Wait for each trajectory to finish, then update the mean and variance
         count = 0
-        f = open('reaction_coordinate.dat', 'w')
+        f = open(umbrellaFilename, 'w')
+
+        f.write('**********************\n')
+        f.write('RPMD umbrella sampling\n')
+        f.write('**********************\n\n')
+
+        f.write('Temperature                             = {0:g} K\n'.format(self.T))
+        f.write('Number of beads                         = {0:d}\n'.format(self.Nbeads))
+        f.write('Time step                               = {0:g} ps\n'.format(self.dt * 2.418884326505e-5))
+        f.write('Number of umbrella integration windows  = {0:d}\n\n'.format(len(self.umbrellaConfigurations)))
+        
+        f.write('========= =============== =============== =========== ============= =============\n')
+        f.write('xi        total av        total av2       count       xi_mean       xi_var\n')
+        f.write('========= =============== =============== =========== ============= =============\n')
+
         for window in windows:
             logging.info('Processing {0:d} trajectories at xi = {1:g}...'.format(window.trajectories, window.xi))
             for trajectory in range(window.trajectories):
@@ -472,8 +490,9 @@ class RPMD:
                 
             logging.info('Finished processing trajectories at xi = {0:g}...'.format(window.xi))
             
-            f.write('{0:9.5f} {1:15.5e} {2:15.5e}\n'.format(window.xi, av_temp, av2_temp - av_temp * av_temp))
-                
+            f.write('{0:9.5f} {1:15.8e} {2:15.8e} {3:11d} {4:13.5e} {5:13.5e}\n'.format(window.xi, window.av, window.av2, window.count, av_temp, av2_temp - av_temp * av_temp))
+
+        f.write('========= =============== =============== =========== ============= =============\n')
         f.close()
         
         logging.info('')
