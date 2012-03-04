@@ -1145,7 +1145,7 @@ class RPMD:
             childTrajectories, equilibrationSteps, childSamplingSteps, 
             childEvolutionSteps, childrenPerSampling)
     
-    def computeRPMDRateCoefficient(self):
+    def computeRateCoefficient(self):
         """
         Compute the value of the RPMD rate coefficient.
         """
