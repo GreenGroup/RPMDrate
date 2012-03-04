@@ -286,6 +286,28 @@ class RPMD:
         workingDirectory = self.createWorkingDirectory()
         configurationsFilename = os.path.join(workingDirectory, 'umbrella_configurations.dat')
 
+        # Look for existing output file for this calculation
+        # If a file exists, we won't repeat the calculation
+        if os.path.exists(configurationsFilename):
+            logging.info('Loading saved output from {0}'.format(configurationsFilename))
+            xi_list0, q_initial0, equilibrationSteps0 = self.loadUmbrellaConfigurations(configurationsFilename)
+            if xi_list.shape[0] == xi_list0.shape[0] and all(numpy.abs(xi_list - xi_list0) < 1e-6):
+                logging.info('Using results of previously saved umbrella configurations.')
+                logging.info('')
+                xi_list = xi_list0
+                q_initial = q_initial0
+                self.umbrellaConfigurations = []
+                for l in range(Nxi):
+                    xi_current = xi_list[l]
+                    q_current = self.cleanGeometry(q_initial[:,:,l])
+                    self.umbrellaConfigurations.append((xi_current, q_current))
+                return
+            else:
+                logging.info('NOT using results of previously saved umbrella configurations.')           
+        else:
+            logging.info('Output will be saved to {0}'.format(configurationsFilename))
+        logging.info('')
+
         # Only use one bead to generate initial positions in each window
         # (We will equilibrate within each window to allow the beads to separate)
         self.Nbeads = 1
@@ -779,6 +801,63 @@ class RPMD:
             f.write('\n')
         
         f.close()
+        
+    def loadUmbrellaConfigurations(self, path):
+        """
+        Load the results of an umbrella configurations calculation from `path`
+        on disk. This can be useful both as a means of postprocessing results
+        at a later date and for restarting an incomplete calculation.
+        """
+        
+        f = open(path, 'r')
+
+        # Header
+        f.readline()
+        jobtype = f.readline()
+        if jobtype.strip() != 'RPMD umbrella configurations':
+            raise RPMDError('{0} is not a valid RPMD umbrella configurations output file.'.format(jobtype))
+        f.readline()
+        f.readline()
+        
+        # Parameters
+        line = f.readline()
+        while line.strip() != '':
+            param, data = line.split('=')
+            param = param.strip()
+            data = data.split()
+            if param == 'Temperature':
+                T = float(data[0])
+            elif param == 'Number of beads':
+                Nbeads = int(data[0])
+            elif param == 'Time step':
+                dt = float(data[0]) / 2.418884326505e-5
+            elif param == 'Number of umbrella integration windows':
+                Nxi = int(data[0])
+            elif param == 'Trajectory evolution time':
+                evolutionSteps = int(data[2][1:])
+            else:
+                raise RPMDError('Invalid umbrella configurations parameter {0!r}.'.format(param))
+            line = f.readline()
+        
+        # Configurations
+        xi_list = numpy.zeros(Nxi)
+        q_list = []
+        for n in range(Nxi):
+            line = f.readline().strip()
+            xi_list[n] = float(line.split()[-1])
+            q = []
+            line = f.readline().strip()
+            while line != '':
+                label, x, y, z = line.split()
+                q.append([float(x), float(y), float(z)])
+                line = f.readline().strip()
+            q_list.append(q)
+        xi_list = numpy.array(xi_list)
+        q_list = numpy.array(q_list).T
+                
+        f.close()
+        
+        return xi_list, q_list, evolutionSteps
         
     def saveRecrossingFactor(self, path, kappa_num, kappa_denom, trajectoryCount,
                              childTrajectories, equilibrationSteps, 
