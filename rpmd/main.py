@@ -723,7 +723,7 @@ class RPMD:
         logging.info('Temperature                             = {0:g} K'.format(self.T))
         logging.info('')
         
-        fromAtomicUnits = 1e6 / ((5.2917721092e-11)**3 / 2.418884326505e-17)
+        fromAtomicUnits = 1e6 * ((5.2917721092e-11)**3 / 2.418884326505e-17) * constants.Na
         
         # Compute the rate coefficient using the reactant dividing surface
         Rinf = self.reactants.Rinf
