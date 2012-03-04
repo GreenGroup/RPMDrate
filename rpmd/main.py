@@ -1145,6 +1145,40 @@ class RPMD:
             childTrajectories, equilibrationSteps, childSamplingSteps, 
             childEvolutionSteps, childrenPerSampling)
     
+    def saveRateCoefficient(self, path, k_QTST_s0, staticFactor, k_QTST, recrossingFactor, k_RPMD):
+        """
+        Save the results of a rate coefficient calculation to `path` on disk.
+        This serves as both a record of the calculation and a means of
+        restarting an incomplete calculation.
+        """
+        
+        fromAtomicUnits = 1e6 * ((5.2917721092e-11)**3 / 2.418884326505e-17)
+
+        f = open(path, 'w')
+        
+        f.write('*********************\n')
+        f.write('RPMD rate coefficient\n')
+        f.write('*********************\n\n')
+        logging.info('')
+
+        f.write('Temperature                             = {0:g} K\n'.format(self.T))
+        f.write('Number of beads                         = {0:d}\n\n'.format(self.Nbeads))
+
+        f.write('k_QTST(T;s0)                            = {0:g} cm^3/(molecule*s)\n'.format(k_QTST_s0 * fromAtomicUnits))        
+        f.write('                                        = {0:g} cm^3/(mol*s)\n\n'.format(k_QTST_s0 * fromAtomicUnits * constants.Na))        
+        
+        f.write('Static factor                           = {0:g}\n\n'.format(staticFactor))
+        
+        f.write('k_QTST(T;s1)                            = {0:g} cm^3/(molecule*s)\n'.format(k_QTST * fromAtomicUnits))
+        f.write('                                        = {0:g} cm^3/(mol*s)\n\n'.format(k_QTST * fromAtomicUnits * constants.Na))
+        
+        f.write('Recrossing factor                       = {0:g}\n\n'.format(recrossingFactor))
+        
+        f.write('k_RPMD(T)                               = {0:g} cm^3/(molecule*s)\n'.format(k_RPMD * fromAtomicUnits))
+        f.write('                                        = {0:g} cm^3/(mol*s)\n\n'.format(k_RPMD * fromAtomicUnits * constants.Na))
+        
+        f.close()
+
     def computeRateCoefficient(self):
         """
         Compute the value of the RPMD rate coefficient.
@@ -1161,20 +1195,19 @@ class RPMD:
         logging.info('Parameters')
         logging.info('==========')
         logging.info('Temperature                             = {0:g} K'.format(self.T))
+        logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
         logging.info('')
         
-        fromAtomicUnits = 1e6 * ((5.2917721092e-11)**3 / 2.418884326505e-17) * constants.Na
-        
+        # Set up output files and directory
+        workingDirectory = self.createWorkingDirectory()
+        rateFilename = os.path.join(workingDirectory, 'rate_coefficient_{0:d}.dat'.format(self.Nbeads))
+
         # Compute the rate coefficient using the reactant dividing surface
         Rinf = self.reactants.Rinf
         mA = self.reactants.totalMass1
         mB = self.reactants.totalMass2
         mu = mA * mB / (mA + mB)
-        k_QTST = 4 * constants.pi * Rinf * Rinf / numpy.sqrt(2 * constants.pi * self.beta * mu)
-        
-        logging.info('Result of RPMD rate coefficient calculation:')
-        logging.info('')
-        logging.info('k(T;s0) (QTST)                          = {0:g} cm^3/(mol*s)'.format(k_QTST * fromAtomicUnits))
+        k_QTST_s0 = 4 * constants.pi * Rinf * Rinf / numpy.sqrt(2 * constants.pi * self.beta * mu)
         
         # Compute the static factor
         W1 = numpy.max(self.potentialOfMeanForce[1,:])
@@ -1182,19 +1215,16 @@ class RPMD:
         staticFactor = numpy.exp(-self.beta * (W1 - W0))
         
         # Correct the rate coefficient to the transition state dividing surface
-        k_QTST *= staticFactor
+        k_QTST = k_QTST_s0 * staticFactor
         
         # Correct the rate coefficient for recrossings
         k_RPMD = k_QTST * self.recrossingFactor
-        
-        logging.info('Static factor                           = {0:g}'.format(staticFactor))
-        logging.info('k(T;s1) (QTST)                          = {0:g} cm^3/(mol*s)'.format(k_QTST * fromAtomicUnits))
-        logging.info('Dynamic (recrossing) factor             = {0:g}'.format(self.recrossingFactor))
-        logging.info('k(T) (RPMD)                             = {0:g} cm^3/(mol*s)'.format(k_RPMD * fromAtomicUnits))
-        logging.info('')
-        
+                
+        fromAtomicUnits = 1e6 * ((5.2917721092e-11)**3 / 2.418884326505e-17) * constants.Na
         logging.info('Final value of rate coefficient = {0:g} cm^3/(mol*s)'.format(k_RPMD * fromAtomicUnits))
         logging.info('')
+
+        self.saveRateCoefficient(rateFilename, k_QTST_s0, staticFactor, k_QTST, self.recrossingFactor, k_RPMD)
 
         return k_RPMD
     
