@@ -1179,6 +1179,53 @@ class RPMD:
         
         f.close()
 
+    def loadRateCoefficient(self, path):
+        """
+        Load the results of a rate coefficient calculation from `path` on disk.
+        This can be useful both as a means of postprocessing results at a later
+        date and for restarting an incomplete calculation.
+        """
+
+        f = open(path, 'r')
+
+        toAtomicUnits = 1e-6 / ((5.2917721092e-11)**3 / 2.418884326505e-17)
+
+        # Header
+        f.readline()
+        jobtype = f.readline()
+        if jobtype.strip() != 'RPMD rate coefficient':
+            raise RPMDError('{0} is not a valid RPMD rate coefficient output file.')
+        f.readline()
+        f.readline()
+        
+        # Parameters
+        line = f.readline()
+        while line != '':
+            param, data = line.split('=')
+            param = param.strip()
+            data = data.split()
+            if param == 'Temperature':
+                T = float(data[0])
+            elif param == 'Number of beads':
+                Nbeads = int(data[0])
+            elif param == 'k_QTST(T;s0)':
+                k_QTST_s0 = float(data[0]) * toAtomicUnits
+            elif param == 'Static factor':
+                staticFactor = float(data[0])
+            elif param == 'k_QTST(T;s1)':
+                k_QTST = float(data[0]) * toAtomicUnits
+            elif param == 'Recrossing factor':
+                recrossingFactor = float(data[0])
+            elif param == 'k_RPMD(T)':
+                k_RPMD = float(data[0]) * toAtomicUnits
+            elif param != '':
+                raise RPMDError('Invalid recrossing factor parameter {0!r}.'.format(param))
+            line = f.readline()
+        
+        f.close()
+
+        return (T, Nbeads, k_QTST_s0, staticFactor, k_QTST, recrossingFactor, k_RPMD)
+
     def computeRateCoefficient(self):
         """
         Compute the value of the RPMD rate coefficient.
