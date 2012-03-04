@@ -518,28 +518,27 @@ class RPMD:
         logging.info('=========== ===========')
         logging.info('')
 
-    def computeTransmissionCoefficient(self, 
-                                       Nbeads, 
-                                       dt, 
-                                       equilibrationTime,
-                                       childTrajectories,
-                                       childrenPerSampling,
-                                       childEvolutionTime,
-                                       childSamplingTime,
-                                       thermostat,
-                                       processes=1,
-                                       xi_current=None,
-                                       saveParentTrajectory=False, 
-                                       saveChildTrajectories=False):
+    def computeRecrossingFactor(self, 
+                                Nbeads, 
+                                dt, 
+                                equilibrationTime,
+                                childTrajectories,
+                                childrenPerSampling,
+                                childEvolutionTime,
+                                childSamplingTime,
+                                thermostat,
+                                processes=1,
+                                xi_current=None,
+                                saveParentTrajectory=False, 
+                                saveChildTrajectories=False):
         """
-        Return the transmission coefficient by the recrossing method. In this
-        approach, a constrained RPMD simulation is initiated in the presence of
-        an Andersen thermostat to generate a series of independent 
-        configurations with centroids on the transition state dividing surface
-        :math:`\\bar{s}_1(\\mathbf{q}) = 0`. For each of these "parent"
-        configurations, a set of "child" trajectories is spawned by sampling
-        from a Maxwell-Boltzmann distribution, with each trajectory evolving
-        in time without the dividing surface constraint or Andersen thermostat.
+        Return the recrossing factor for the RPMD system. A constrained RPMD
+        simulation is initiated in the presence of a thermostat to generate a
+        series of independent configurations with centroids on the transition
+        state dividing surface :math:`\\bar{s}_1(\\mathbf{q}) = 0`. For each of
+        these "parent" configurations, a set of "child" trajectories is spawned
+        by sampling from a Maxwell-Boltzmann distribution, with each trajectory
+        evolving in time without the dividing surface constraint or thermostat.
         The transmission coefficient is then computed via
         
         .. math::
@@ -559,7 +558,7 @@ class RPMD:
         # If xi_current not specified, use the maximum of the potential of mean force
         if xi_current is None:
             if self.potentialOfMeanForce is None:
-                raise RPMDError('You must run computePotentialOfMeanForce() or specify xi_current before running computeTransmissionCoefficient().')
+                raise RPMDError('You must run computePotentialOfMeanForce() or specify xi_current before running computeRecrossingFactor().')
             index = numpy.argmax(self.potentialOfMeanForce[1,:])
             xi_current = self.potentialOfMeanForce[0,index]
         
@@ -589,9 +588,9 @@ class RPMD:
         pool = multiprocessing.Pool(processes=processes)
         results = []
 
-        logging.info('*****************************')
-        logging.info('RPMD transmission coefficient')
-        logging.info('*****************************')
+        logging.info('**********************')
+        logging.info('RPMD recrossing factor')
+        logging.info('**********************')
         logging.info('')
         
         logging.info('Parameters')
@@ -864,7 +863,7 @@ class RPMD:
         """
         
         if self.potentialOfMeanForce is None or self.recrossingFactor is None:
-            raise RPMDError('You must run computePotentialOfMeanForce() and computeTransmissionCoefficient() before running computeRPMDRateCoefficient().')
+            raise RPMDError('You must run computePotentialOfMeanForce() and computeRecrossingFactor() before running computeRPMDRateCoefficient().')
         
         logging.info('*********************')
         logging.info('RPMD rate coefficient')
