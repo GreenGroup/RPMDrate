@@ -988,6 +988,54 @@ class RPMD:
 
         f.close()
     
+    def loadPotentialOfMeanForce(self, path):
+        """
+        Load the results of a potential of mean force calculation from `path` on
+        disk. This can be useful both as a means of postprocessing results at a
+        later date and for restarting an incomplete calculation.
+        """
+        
+        f = open(path, 'r')
+
+        # Header
+        f.readline()
+        jobtype = f.readline()
+        if jobtype.strip() != 'RPMD potential of mean force':
+            raise RPMDError('{0} is not a valid RPMD potential of mean force output file.')
+        f.readline()
+        f.readline()
+        
+        # Parameters
+        line = f.readline()
+        while line.strip() != '':
+            param, data = line.split('=')
+            param = param.strip()
+            data = data.split()
+            if param == 'Temperature':
+                T = float(data[0])
+            elif param == 'Lower bound of reaction coordinate':
+                xi_min = float(data[0])
+            elif param == 'Upper bound of reaction coordinate':
+                xi_max = float(data[0])
+            elif param == 'Number of bins':
+                bins = int(data[0])
+            else:
+                raise RPMDError('Invalid potential of mean force parameter {0!r}.'.format(param))
+            line = f.readline()
+        
+        # Data
+        self.potentialOfMeanForce = numpy.zeros((2,bins))
+        line = f.readline()
+        line = f.readline()
+        line = f.readline()
+        for n in range(bins):
+            xi, A = f.readline().strip().split()
+            self.potentialOfMeanForce[0,n] = float(xi)
+            self.potentialOfMeanForce[1,n] = float(A) / 27.211
+        line = f.readline()
+
+        f.close()
+    
     def saveRecrossingFactor(self, path, kappa_num, kappa_denom, trajectoryCount,
                              childTrajectories, equilibrationSteps, 
                              childSamplingSteps, childEvolutionSteps, 
