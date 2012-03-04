@@ -545,6 +545,10 @@ class RPMD:
         logging.info('Number of bins                          = {0:d}'.format(bins))
         logging.info('')
         
+        # Set up output files and directory
+        workingDirectory = self.createWorkingDirectory()
+        potentialFilename = os.path.join(workingDirectory, 'potential_of_mean_force_{0:d}.dat'.format(self.Nbeads))
+
         Nwindows = len(self.umbrellaWindows)
         
         xi_list = numpy.linspace(xi_min, xi_max, bins, True)
@@ -576,18 +580,8 @@ class RPMD:
             self.potentialOfMeanForce[0,n] = xi_list[n]
             self.potentialOfMeanForce[1,n] = numpy.trapz(dA[:n], xi_list[:n])
              
-        logging.info('Result of potential of mean force calculation:')
-        logging.info('')
-        logging.info('=========== ===========')
-        logging.info('Rxn coord   PMF (eV)')
-        logging.info('=========== ===========')
-        for n in range(0, self.potentialOfMeanForce.shape[1], 10):
-            logging.info('{0:11.6f} {1:11.6f}'.format(
-                self.potentialOfMeanForce[0,n],
-                self.potentialOfMeanForce[1,n] * 27.211,
-            ))
-        logging.info('=========== ===========')
-        logging.info('')
+        # Save the results to file
+        self.savePotentialOfMeanForce(potentialFilename)
 
     def computeRecrossingFactor(self, 
                                 Nbeads, 
@@ -960,6 +954,40 @@ class RPMD:
         
         return xi_list, av_list, av2_list, count_list
         
+    def savePotentialOfMeanForce(self, path):
+        """
+        Save the results of a potential of mean force calculation to `path` on
+        disk. This serves as both a record of the calculation and a means of
+        restarting an incomplete calculation.
+        """
+        
+        xi_min = self.potentialOfMeanForce[0,0]
+        xi_max = self.potentialOfMeanForce[0,-1]
+        bins = self.potentialOfMeanForce.shape[1]
+        
+        f = open(path, 'w')
+        
+        f.write('****************************\n')
+        f.write('RPMD potential of mean force\n')
+        f.write('****************************\n\n')
+        
+        f.write('Temperature                             = {0:g} K\n'.format(self.T))
+        f.write('Lower bound of reaction coordinate      = {0:g}\n'.format(xi_min))
+        f.write('Upper bound of reaction coordinate      = {0:g}\n'.format(xi_max))
+        f.write('Number of bins                          = {0:d}\n\n'.format(bins))
+
+        f.write('=========== ===========\n')
+        f.write('Rxn coord   PMF (eV)\n')
+        f.write('=========== ===========\n')
+        for n in range(0, self.potentialOfMeanForce.shape[1]):
+            f.write('{0:11.6f} {1:11.6f}\n'.format(
+                self.potentialOfMeanForce[0,n],
+                self.potentialOfMeanForce[1,n] * 27.211,
+            ))
+        f.write('=========== ===========\n')
+
+        f.close()
+    
     def saveRecrossingFactor(self, path, kappa_num, kappa_denom, trajectoryCount,
                              childTrajectories, equilibrationSteps, 
                              childSamplingSteps, childEvolutionSteps, 
