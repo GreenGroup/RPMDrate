@@ -976,15 +976,15 @@ class RPMD:
         f.write('Upper bound of reaction coordinate      = {0:g}\n'.format(xi_max))
         f.write('Number of bins                          = {0:d}\n\n'.format(bins))
 
-        f.write('=========== ===========\n')
+        f.write('=========== ===============\n')
         f.write('Rxn coord   PMF (eV)\n')
-        f.write('=========== ===========\n')
+        f.write('=========== ===============\n')
         for n in range(0, self.potentialOfMeanForce.shape[1]):
-            f.write('{0:11.6f} {1:11.6f}\n'.format(
+            f.write('{0:11.6f} {1:11.10f}\n'.format(
                 self.potentialOfMeanForce[0,n],
                 self.potentialOfMeanForce[1,n] * 27.211,
             ))
-        f.write('=========== ===========\n')
+        f.write('=========== ===============\n')
 
         f.close()
     
@@ -1169,7 +1169,9 @@ class RPMD:
         
         f.write('Static factor                           = {0:g}\n\n'.format(staticFactor))
         
-        f.write('k_QTST(T;s1)                            = {0:g} cm^3/(molecule*s)\n'.format(k_QTST * fromAtomicUnits))
+        f.write('Maximum reaction coordinate (xi_max)    = {0:.6f}\n\n'.format(self.xi_current))
+
+        f.write('k_QTST(T;xi_max)                        = {0:g} cm^3/(molecule*s)\n'.format(k_QTST * fromAtomicUnits))
         f.write('                                        = {0:g} cm^3/(mol*s)\n\n'.format(k_QTST * fromAtomicUnits * constants.Na))
         
         f.write('Recrossing factor                       = {0:g}\n\n'.format(recrossingFactor))
@@ -1212,7 +1214,9 @@ class RPMD:
                 k_QTST_s0 = float(data[0]) * toAtomicUnits
             elif param == 'Static factor':
                 staticFactor = float(data[0])
-            elif param == 'k_QTST(T;s1)':
+            elif param == 'Maximum reaction coordinate (xi_max)':
+                xi_current = float(data[0])
+            elif param == 'k_QTST(T;xi_max)':
                 k_QTST = float(data[0]) * toAtomicUnits
             elif param == 'Recrossing factor':
                 recrossingFactor = float(data[0])
@@ -1224,7 +1228,7 @@ class RPMD:
         
         f.close()
 
-        return (T, Nbeads, k_QTST_s0, staticFactor, k_QTST, recrossingFactor, k_RPMD)
+        return (T, Nbeads, k_QTST_s0, staticFactor, xi_current, k_QTST, recrossingFactor, k_RPMD)
 
     def computeRateCoefficient(self):
         """
