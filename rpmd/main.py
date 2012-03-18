@@ -41,6 +41,7 @@ import rpmd.constants as constants
 import rpmd.quantity as quantity
 
 from rpmd._main import *
+from rpmd.surface import TransitionState
 
 ################################################################################
 
@@ -139,7 +140,7 @@ class RPMD:
     
     """
 
-    def __init__(self, label, T, reactants, transitionStates, potential, outputDirectory='.'):
+    def __init__(self, label, T, reactants, transitionState, potential, outputDirectory='.'):
         """
         Initialize an RPMD object. The `mass` of each atom should be given in
         g/mol, while the `Rinf` value should be given in angstroms. (They will
@@ -150,7 +151,7 @@ class RPMD:
         self.mass = reactants.mass
         self.Natoms = len(self.mass)
         self.reactants = reactants
-        self.transitionStates = transitionStates or []
+        self.transitionStates = [transitionState]
         self.potential = potential
         self.outputDirectory = os.path.abspath(outputDirectory)
         
@@ -166,7 +167,63 @@ class RPMD:
         self.recrossingFactor = None
         
         self.initializeLog()
+    
+    def addEquivalentTransitionState(self, formingBonds, breakingBonds):
+        """
+        Add an equivalent transition state to the RPMD system, defined by lists
+        of forming and breaking bonds `formingBonds` and `breakingBonds`,
+        respectively. The bonds must correspond to the forming and breaking
+        bonds in the original transition state.
+        """
+        mapping = {}
+        for bond1, bond2 in zip(self.transitionStates[0].formingBonds, formingBonds):
+            atom11, atom12 = bond1
+            atom21, atom22 = bond2
+            if atom11 in mapping and mapping[atom11] != atom21:
+                raise ValueError('Inconsistent indices in equivalent transition state: {0} mapped to both {1} and {2}.'.format(atom11, mapping[atom11], atom21))
+            elif atom21 in mapping and mapping[atom21] != atom11:
+                raise ValueError('Inconsistent indices in equivalent transition state: {0} mapped to both {1} and {2}.'.format(atom21, mapping[atom21], atom11))
+            else:
+                mapping[atom11] = atom21
+                mapping[atom21] = atom11
+            if atom12 in mapping and mapping[atom12] != atom22:
+                raise ValueError('Inconsistent indices in equivalent transition state: {0} mapped to both {1} and {2}.'.format(atom12, mapping[atom12], atom22))
+            elif atom22 in mapping and mapping[atom22] != atom12:
+                raise ValueError('Inconsistent indices in equivalent transition state: {0} mapped to both {1} and {2}.'.format(atom22, mapping[atom22], atom12))
+            else:
+                mapping[atom12] = atom22
+                mapping[atom22] = atom12
+        for bond1, bond2 in zip(self.transitionStates[0].breakingBonds, breakingBonds):
+            atom11, atom12 = bond1
+            atom21, atom22 = bond2
+            if atom11 in mapping and mapping[atom11] != atom21:
+                raise ValueError('Inconsistent indices in equivalent transition state: {0} mapped to both {1} and {2}.'.format(atom11, mapping[atom11], atom21))
+            elif atom21 in mapping and mapping[atom21] != atom11:
+                raise ValueError('Inconsistent indices in equivalent transition state: {0} mapped to both {1} and {2}.'.format(atom21, mapping[atom21], atom11))
+            else:
+                mapping[atom11] = atom21
+                mapping[atom21] = atom11
+            if atom12 in mapping and mapping[atom12] != atom22:
+                raise ValueError('Inconsistent indices in equivalent transition state: {0} mapped to both {1} and {2}.'.format(atom12, mapping[atom12], atom22))
+            elif atom22 in mapping and mapping[atom22] != atom12:
+                raise ValueError('Inconsistent indices in equivalent transition state: {0} mapped to both {1} and {2}.'.format(atom22, mapping[atom22], atom12))
+            else:
+                mapping[atom12] = atom22
+                mapping[atom22] = atom12
+        for atom in range(1, self.Natoms+1):
+            if atom not in mapping:
+                mapping[atom] = atom
         
+        geometry = numpy.zeros_like(self.transitionStates[0].geometry)
+        for atom in range(self.Natoms):
+            geometry[:,atom] = self.transitionStates[0].geometry[:,mapping[atom+1]-1]
+        
+        self.transitionStates.append(TransitionState(
+            geometry = (geometry.T,"bohr"),
+            formingBonds = formingBonds,
+            breakingBonds = breakingBonds,
+        ))
+    
     def initializeLog(self, verbose=logging.INFO):
         """
         Set up a logger for RPMD to use to print output to stdout. The
