@@ -31,18 +31,21 @@
 
 """
 This module contains functions for unit conversions of various types of
-physical quantities. The unit conversions make use of the :mod:`quantities`
-package.
+physical quantities.
 """
 
-import quantities as pq
+import numpy
 
-# Define custom units
-pq.UnitQuantity('bohr', pq.constants.atomic_unit_of_length, 'bohr')
+import rpmd.constants as constants
 
 ################################################################################
 
-TEMPERATURE_DIMENSIONS = [pq.K.simplified.dimensionality]
+TEMPERATURE_UNITS = {
+    'K': 1.0,
+    'degC': 1.0,
+    'degF': 5.0/9.0,
+    'degR': 5.0/9.0,
+}
 
 def convertTemperature(quantity, units):
     """
@@ -51,123 +54,143 @@ def convertTemperature(quantity, units):
     successful.
     """
     if isinstance(quantity, tuple):
-        quantity = pq.Quantity(quantity[0], quantity[1])
-    elif not isinstance(quantity, pq.Quantity):
-        raise ValueError('Invalid value "{0}" for quantity; must be a tuple or Quantity object with units of temperature.'.format(quantity))
+        value0, units0 = quantity
+    else:
+        raise ValueError('Invalid value "{0}" for quantity; must be a tuple (value,units) with units of temperature.'.format(quantity))
     
-    if isinstance(units, str):
-        units = pq.Quantity(1.0, units)
+    if isinstance(value0, (list, tuple)):
+        value0 = numpy.array(value0)
     
-    inputDimensionality = quantity.units.dimensionality
-    outputDimensionality = units.dimensionality
-
-    if inputDimensionality.simplified not in TEMPERATURE_DIMENSIONS:
-        raise ValueError('Invalid input units "{0}" for temperature.'.format(quantity.units))
-    if outputDimensionality.simplified not in TEMPERATURE_DIMENSIONS:
+    if units0 not in TEMPERATURE_UNITS:
+        raise ValueError('Invalid input units "{0}" for temperature.'.format(units0))
+    if units not in TEMPERATURE_UNITS:
         raise ValueError('Invalid output units "{0}" for temperature.'.format(units))
     
-    if inputDimensionality == pq.degF.dimensionality:
-        quantity = quantity + 459.67 * pq.degF
-    elif inputDimensionality == pq.degC.dimensionality:
-        quantity = quantity + 273.15 * pq.degC
+    if units0 == 'degF':        value0 += 459.67
+    elif units0 == 'degC':      value0 += 273.15
     
-    quantity = quantity.rescale(units)
+    value = value0 * TEMPERATURE_UNITS[units0] / TEMPERATURE_UNITS[units]
     
-    if outputDimensionality == pq.degF.dimensionality:
-        quantity = quantity - 459.67 * pq.degF
-    elif outputDimensionality == pq.degC.dimensionality:
-        quantity = quantity - 273.15 * pq.degC
-        
-    return quantity
+    if units == 'degF':         value -= 459.67
+    elif units == 'degC':       value -= 273.15
+     
+    return value
 
 ################################################################################
 
-TIME_DIMENSIONS = [pq.s.simplified.dimensionality]
+TIME_UNITS = {
+    'fs': 1.0e-15,
+    'ps': 1.0e-12,
+    'ns': 1.0e-9,
+    'us': 1.0e-6,
+    'ms': 1.0e-3,
+    's': 1.0,
+    'min': 60.0,
+    'hr': 3600.0,
+    'day': 86400.0,
+}
 
 def convertTime(quantity, units):
     """
-    Convert a given `quantity` -- a :class:`Quantity` object with units of 
-    time -- to the given `units` of time. A :class:`ValueError` is raised if
-    this conversion is not successful.
+    Convert a given `quantity` with units of time to the given `units` 
+    of time. A :class:`ValueError` is raised if this conversion is not
+    successful.
     """
     if isinstance(quantity, tuple):
-        quantity = pq.Quantity(quantity[0], quantity[1])
-    elif not isinstance(quantity, pq.Quantity):
-        raise ValueError('Invalid value "{0}" for quantity; must be a tuple or Quantity object with units of time.'.format(quantity))
+        value0, units0 = quantity
+    else:
+        raise ValueError('Invalid value "{0}" for quantity; must be a tuple (value,units) with units of time.'.format(quantity))
     
-    if isinstance(units, str):
-        units = pq.Quantity(1.0, units)
+    if isinstance(value0, (list, tuple)):
+        value0 = numpy.array(value0)
     
-    inputDimensionality = quantity.units.dimensionality
-    outputDimensionality = units.dimensionality
-
-    if inputDimensionality.simplified not in TIME_DIMENSIONS:
-        raise ValueError('Invalid input units "{0}" for time.'.format(quantity.units))
-    if outputDimensionality.simplified not in TIME_DIMENSIONS:
+    if units0 not in TIME_UNITS:
+        raise ValueError('Invalid input units "{0}" for time.'.format(units0))
+    if units not in TIME_UNITS:
         raise ValueError('Invalid output units "{0}" for time.'.format(units))
-        
-    return quantity.rescale(units)
+    
+    return value0 * TIME_UNITS[units0] / TIME_UNITS[units]
 
 ################################################################################
 
-LENGTH_DIMENSIONS = [pq.m.simplified.dimensionality]
+LENGTH_UNITS = {
+    'fm': 1.0e-15,
+    'pm': 1.0e-12,
+    'nm': 1.0e-9,
+    'um': 1.0e-6,
+    'mm': 1.0e-3,
+    'cm': 1.0e-2,
+    'dm': 1.0e-1,
+    'm': 1.0,
+    'km': 1.0e3,
+    'angstrom': 1.0e-10,
+    'bohr': 5.2917721092e-11,
+}
 
 def convertLength(quantity, units):
     """
-    Convert a given `quantity` -- a :class:`Quantity` object with units of 
-    length -- to the given `units` of length. A :class:`ValueError` is raised
-    if this conversion is not successful.
+    Convert a given `quantity` with units of length to the given `units` 
+    of length. A :class:`ValueError` is raised if this conversion is not
+    successful.
     """
     if isinstance(quantity, tuple):
-        quantity = pq.Quantity(quantity[0], quantity[1])
-    elif not isinstance(quantity, pq.Quantity):
-        raise ValueError('Invalid value "{0}" for quantity; must be a tuple or Quantity object with units of length.'.format(quantity))
+        value0, units0 = quantity
+    else:
+        raise ValueError('Invalid value "{0}" for quantity; must be a tuple (value,units) with units of length.'.format(quantity))
     
-    if isinstance(units, str):
-        units = pq.Quantity(1.0, units)
+    if isinstance(value0, (list, tuple)):
+        value0 = numpy.array(value0)
     
-    inputDimensionality = quantity.units.dimensionality
-    outputDimensionality = units.dimensionality
-
-    if inputDimensionality.simplified not in LENGTH_DIMENSIONS:
-        raise ValueError('Invalid input units "{0}" for length.'.format(quantity.units))
-    if outputDimensionality.simplified not in LENGTH_DIMENSIONS:
+    if units0 not in LENGTH_UNITS:
+        raise ValueError('Invalid input units "{0}" for length.'.format(units0))
+    if units not in LENGTH_UNITS:
         raise ValueError('Invalid output units "{0}" for length.'.format(units))
-        
-    return quantity.rescale(units)
+    
+    return value0 * LENGTH_UNITS[units0] / LENGTH_UNITS[units]
 
 ################################################################################
 
-MASS_DIMENSIONS = [pq.kg.simplified.dimensionality]
-MOLAR_MASS_DIMENSIONS = [(pq.kg / pq.mol).simplified.dimensionality]
+MASS_UNITS = {
+    'mg': 1.0e-6,
+    'g': 1.0e-3,
+    'kg': 1.0,
+}
+MOLAR_MASS_UNITS = {
+    'mg/mol': 1.0e-6 / constants.Na,
+    'g/mol': 1.0e-3 / constants.Na,
+    'kg/mol': 1.0 / constants.Na,
+    'mg/kmol': 1.0e-9 / constants.Na,
+    'g/kmol': 1.0e-6 / constants.Na,
+    'kg/kmol': 1.0e-3 / constants.Na,
+    'amu': 1.0e-3 / constants.Na,
+}
 
 def convertMass(quantity, units):
     """
-    Convert a given `quantity` -- a :class:`Quantity` object with units of 
-    mass -- to the given `units` of mass. A :class:`ValueError` is raised
-    if this conversion is not successful. This function can handle conversion
-    between intensive (molar) and extensive masses by multiplying or dividing
-    by an Avogadro number as appropriate.
+    Convert a given `quantity` with units of mass to the given `units` 
+    of mass. A :class:`ValueError` is raised if this conversion is not
+    successful.
     """
     if isinstance(quantity, tuple):
-        quantity = pq.Quantity(quantity[0], quantity[1])
-    elif not isinstance(quantity, pq.Quantity):
-        raise ValueError('Invalid value "{0}" for quantity; must be a tuple or Quantity object with units of mass.'.format(quantity))
+        value0, units0 = quantity
+    else:
+        raise ValueError('Invalid value "{0}" for quantity; must be a tuple (value,units) with units of mass.'.format(quantity))
     
-    if isinstance(units, str):
-        units = pq.Quantity(1.0, units)
-        
-    inputDimensionality = quantity.units.dimensionality.simplified
-    outputDimensionality = units.dimensionality.simplified
+    if isinstance(value0, (list, tuple)):
+        value0 = numpy.array(value0)
     
-    if inputDimensionality not in MASS_DIMENSIONS and inputDimensionality not in MOLAR_MASS_DIMENSIONS:
-        raise ValueError('Invalid input units "{0}" for {1}.'.format(quantity.units, unittype))
-    if outputDimensionality not in MASS_DIMENSIONS and outputDimensionality not in MOLAR_MASS_DIMENSIONS:
-        raise ValueError('Invalid output units "{0}" for {1}.'.format(units, unittype))
+    if units0 not in MASS_UNITS and units0 not in MOLAR_MASS_UNITS:
+        raise ValueError('Invalid input units "{0}" for mass.'.format(units0))
+    if units not in MASS_UNITS and units not in MOLAR_MASS_UNITS:
+        raise ValueError('Invalid output units "{0}" for mass.'.format(units))
     
-    if inputDimensionality in MASS_DIMENSIONS and outputDimensionality in MOLAR_MASS_DIMENSIONS:
-        quantity = quantity * constants.Na / pq.mol
-    elif inputDimensionality in MOLAR_MASS_DIMENSIONS and outputDimensionality in MASS_DIMENSIONS:
-        quantity = quantity / (constants.Na / pq.mol)
+    if units0 in MASS_UNITS and units in MASS_UNITS:
+        return value0 * MASS_UNITS[units0] / MASS_UNITS[units]
+    elif units0 in MASS_UNITS and units in MOLAR_MASS_UNITS:
+        return value0 * MASS_UNITS[units0] / MOLAR_MASS_UNITS[units]
+    elif units0 in MOLAR_MASS_UNITS and units in MASS_UNITS:
+        return value0 * MOLAR_MASS_UNITS[units0] / MASS_UNITS[units]
+    elif units0 in MOLAR_MASS_UNITS and units in MOLAR_MASS_UNITS:
+        return value0 * MOLAR_MASS_UNITS[units0] / MOLAR_MASS_UNITS[units]
     
-    return quantity.rescale(units)
+    return value0 * LENGTH_UNITS[units0] / LENGTH_UNITS[units]
