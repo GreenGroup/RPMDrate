@@ -140,7 +140,7 @@ class RPMD:
     
     """
 
-    def __init__(self, label, T, reactants, transitionState, potential, outputDirectory='.'):
+    def __init__(self, label, T, Nbeads, reactants, transitionState, potential, outputDirectory='.'):
         """
         Initialize an RPMD object. The `mass` of each atom should be given in
         g/mol, while the `Rinf` value should be given in angstroms. (They will
@@ -148,6 +148,7 @@ class RPMD:
         """
         self.label = label
         self.T = float(quantity.convertTemperature(T, "K"))
+        self.Nbeads = Nbeads
         self.mass = reactants.mass
         self.Natoms = len(self.mass)
         self.reactants = reactants
@@ -157,7 +158,6 @@ class RPMD:
         
         self.beta = 4.35974417e-18 / (constants.kB * self.T)
         self.dt = 0
-        self.Nbeads = 0
         self.xi_current = 0
         self.mode = 0
         
@@ -341,7 +341,9 @@ class RPMD:
 
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        configurationsFilename = os.path.join(workingDirectory, 'umbrella_configurations.dat')
+        # The umbrella configurations are independent of temperature and number
+        # of beads, so store them in the top-level directory
+        configurationsFilename = os.path.realpath(os.path.join(workingDirectory, '..', '..', 'umbrella_configurations.dat'))
 
         # Look for existing output file for this calculation
         # If a file exists, we won't repeat the calculation
@@ -427,13 +429,16 @@ class RPMD:
         
         self.saveUmbrellaConfigurations(configurationsFilename, evolutionSteps)
     
-    def conductUmbrellaSampling(self, 
-                                Nbeads, 
-                                dt, 
-                                windows,
-                                thermostat,
-                                processes=1,
-                                saveTrajectories=False):
+    def computePotentialOfMeanForce(self, 
+                                    dt, 
+                                    windows,
+                                    xi_min, 
+                                    xi_max, 
+                                    bins,
+                                    thermostat,
+                                    tolerance=1e-4,
+                                    processes=1,
+                                    saveTrajectories=False):
         """
         Return the value of the static factor :math:`p^{(n)}(s_1, s_0)` as
         computed using umbrella integration.
@@ -445,7 +450,6 @@ class RPMD:
         
         # Set the parameters for the RPMD calculation
         self.dt = dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
-        self.Nbeads = Nbeads
         Nwindows = len(windows)
         self.thermostat = thermostat
         self.mode = 1
@@ -454,104 +458,109 @@ class RPMD:
         pool = multiprocessing.Pool(processes=processes)
         results = []
 
-        logging.info('**********************')
-        logging.info('RPMD umbrella sampling')
-        logging.info('**********************')
+        logging.info('****************************')
+        logging.info('RPMD potential of mean force')
+        logging.info('****************************')
         logging.info('')
         
         logging.info('Parameters')
         logging.info('==========')
         logging.info('Temperature                             = {0:g} K'.format(self.T))
-        logging.info('Number of beads                         = {0:d}'.format(Nbeads))
+        logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Number of umbrella integration windows  = {0:d}'.format(Nwindows))
+        logging.info('Lower bound of reaction coordinate      = {0:g}'.format(xi_min))
+        logging.info('Upper bound of reaction coordinate      = {0:g}'.format(xi_max))
+        logging.info('Number of bins                          = {0:d}'.format(bins))
         logging.info('')
 
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:d}.dat'.format(self.Nbeads))
 
-        # Look for existing output file for this calculation
-        # If a file exists, we won't repeat the calculation
-        if os.path.exists(umbrellaFilename):
-            logging.info('Loading saved output from {0}'.format(umbrellaFilename))
-            xi_list0, av_list0, av2_list0, count_list0 = self.loadUmbrellaSampling(umbrellaFilename)
-            Nxi0 = xi_list0.shape[0]
-            for window in windows:
-                for l in range(Nxi0):
-                    if abs(xi_list0[l] - window.xi) < 1e-6:
-                        window.av += av_list0[l]
-                        window.av2 += av2_list0[l]
-                        window.count += count_list0[l]
-                        break
-        else:
-            logging.info('Output will be saved to {0}'.format(umbrellaFilename))
-        logging.info('')
-        
         self.activate()
 
         # Seed the random number generator
         random_init()
 
         self.umbrellaWindows = windows
-
-        # Spawn a number of sampling trajectories in each window
-        for window in windows:
-            
-            equilibrationSteps = int(round(window.equilibrationTime / self.dt))
-            evolutionSteps = int(round(window.evolutionTime / self.dt))
         
-            # Load initial configuration using results from generateUmbrellaConfigurations()
-            q = numpy.empty((3,self.Natoms,self.Nbeads), order='F')
-            for xi, q_initial in self.umbrellaConfigurations:
-                if xi >= window.xi:
-                    break
-            for k in range(self.Nbeads):
-                q[:,:,k] = q_initial
-            
-            # Spawn sampling trajectories in this window
-            # In order to get better statistics (and therefore faster
-            # convergence), we want to give each trajectory a unique initial
-            # position and momentum
-            # To do this, we spawn one trajectory after each equilibration
-            # period, giving up a (small) bit of parallelization in the name of
-            # better statistics in the sampling
-            windowEvolutionSteps = evolutionSteps - int(numpy.ceil(float(window.count) / window.trajectories))
-            windowEquilibrationSteps = equilibrationSteps
-            if windowEvolutionSteps <= 0:
-                logging.info('Already sampled enough trajectories at xi = {1:g}.'.format(window.trajectories, window.xi))
-                windowEquilibrationSteps = 0
+        # Load any previous umbrella sampling trajectories for each window
+        windows = []
+        for window in self.umbrellaWindows:
+            umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:g}.dat'.format(window.xi))
+            if os.path.exists(umbrellaFilename):
+                # Previous trajectories existed, so load them
+                logging.info('Loading saved output for xi = {0:g} from {1}'.format(window.xi, umbrellaFilename))
+                xi, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename)
+                assert abs(xi - window.xi) < 1e-6
+                if len(av_list) > 0:
+                    window.av += av_list[-1]
+                    window.av2 += av2_list[-1]
+                    window.count += count_list[-1]
+                    
             else:
-                logging.info('Spawning {0:d} sampling trajectories at xi = {1:g}...'.format(window.trajectories, window.xi))
-            for trajectory in range(window.trajectories):
-                p = self.sampleMomentum()
-                result = system.equilibrate(0, p, q, windowEquilibrationSteps, window.xi, self.potential, window.kforce, False, False)
-                args = (self, window.xi, p, q, 0, windowEvolutionSteps, window.kforce, saveTrajectories)
-                results.append(pool.apply_async(runUmbrellaTrajectory, args))           
+                # No previous trajectories existed, so start a new output file
+                # for this window
+                equilibrationSteps = int(round(window.equilibrationTime / self.dt))
+                evolutionSteps = int(round(window.evolutionTime / self.dt))
+                f = open(umbrellaFilename, 'w')
+                f.write('**********************\n')
+                f.write('RPMD umbrella sampling\n')
+                f.write('**********************\n\n')
+                f.write('Temperature                             = {0:g} K\n'.format(self.T))
+                f.write('Number of beads                         = {0:d}\n'.format(self.Nbeads))
+                f.write('Time step                               = {0:g} ps\n'.format(self.dt * 2.418884326505e-5))
+                f.write('Reaction coordinate                     = {0:g}\n'.format(window.xi))
+                f.write('Equilibration time                      = {0:g} ps ({1:d} steps)\n'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
+                f.write('Trajectory evolution time               = {0:g} ps ({1:d} steps)\n'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
+                f.write('Force constant                          = {0:g}\n\n'.format(window.kforce))
 
-        logging.info('')
-                 
-        # Wait for each trajectory to finish, then update the mean and variance
-        count = 0
-        f = open(umbrellaFilename, 'w')
-
-        f.write('**********************\n')
-        f.write('RPMD umbrella sampling\n')
-        f.write('**********************\n\n')
-
-        f.write('Temperature                             = {0:g} K\n'.format(self.T))
-        f.write('Number of beads                         = {0:d}\n'.format(self.Nbeads))
-        f.write('Time step                               = {0:g} ps\n'.format(self.dt * 2.418884326505e-5))
-        f.write('Number of umbrella integration windows  = {0:d}\n\n'.format(len(self.umbrellaConfigurations)))
+                f.write('=============== =============== =========== =============== ===============\n')
+                f.write('total av        total av2       count       xi_mean         xi_var\n')
+                f.write('=============== =============== =========== =============== ===============\n')
+                f.close()
         
-        f.write('========= =============== =============== =========== ============= =============\n')
-        f.write('xi        total av        total av2       count       xi_mean       xi_var\n')
-        f.write('========= =============== =============== =========== ============= =============\n')
-
-        for window in windows:
-            logging.info('Processing {0:d} trajectories at xi = {1:g}...'.format(window.trajectories, window.xi))
-            for trajectory in range(window.trajectories):
+                # Since there are no previous trajectories, we clearly need to
+                # sample this window
+                windows.append(window)
                 
+        # This implementation is breadth-first, as we would rather get some
+        # data in all windows than get lots of data in a few windows
+        first = True
+        while len(windows) > 0 or first:
+            
+            first = False
+            
+            # Clear trajectories from previous iteration
+            results = []
+            
+            # Run one trajectory for each window that needs more sampling
+            for window in windows:
+
+                equilibrationSteps = int(round(window.equilibrationTime / self.dt))
+                evolutionSteps = int(round(window.evolutionTime / self.dt))
+            
+                # Load initial configuration using results from generateUmbrellaConfigurations()
+                q = numpy.empty((3,self.Natoms,self.Nbeads), order='F')
+                for xi, q_initial in self.umbrellaConfigurations:
+                    if xi >= window.xi:
+                        break
+                for k in range(self.Nbeads):
+                    q[:,:,k] = q_initial
+                
+                # Spawn sampling trajectory in this window
+                windowEvolutionSteps = evolutionSteps
+                windowEquilibrationSteps = equilibrationSteps
+                logging.info('Spawning sampling trajectory at xi = {0:g}...'.format(window.xi))
+                p = self.sampleMomentum()
+                args = (self, window.xi, p, q, windowEquilibrationSteps, windowEvolutionSteps, window.kforce, saveTrajectories)
+                results.append(pool.apply_async(runUmbrellaTrajectory, args))           
+        
+            count = 0
+            windows0 = windows
+            for window in windows:
+                logging.info('Processing trajectory at xi = {0:g}...'.format(window.xi))
+                    
                 # This line will block until the trajectory finishes
                 dav, dav2, dcount = results[count].get()
                 
@@ -562,49 +571,59 @@ class RPMD:
                 window.count += dcount
                 
                 # Print the updated mean and variance to the log file
-                av_temp = window.av / window.count
-                av2_temp = window.av2 / window.count
+                av = window.av / window.count
+                av2 = window.av2 / window.count
+                mean = av
+                variance = av2 - av * av
                 if dcount > 0:
-                    logging.info('{0:5d} {1:11d} {2:15.8f} {3:15.8f} {4:15.5e}'.format(trajectory+1, window.count, av_temp, av2_temp, av2_temp - av_temp * av_temp))
+                    logging.info('{0:11d} {1:15.8f} {2:15.8f} {3:15.5e}'.format(window.count, av, av2, variance))
     
-                count += 1
+                umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:g}.dat'.format(window.xi))
+                f = open(umbrellaFilename, 'a')
+                f.write('{0:15.8f} {1:15.8f} {2:11d} {3:15.5e} {4:15.5e}\n'.format(window.av, window.av2, window.count, mean, variance))
+                f.close()
                 
-            logging.info('Finished processing trajectories at xi = {0:g}...'.format(window.xi))
-            
-            f.write('{0:9.5f} {1:15.8e} {2:15.8e} {3:11d} {4:13.5e} {5:13.5e}\n'.format(window.xi, window.av, window.av2, window.count, av_temp, av2_temp - av_temp * av_temp))
+                count += 1
 
-        f.write('========= =============== =============== =========== ============= =============\n')
-        f.close()
+            windows = []
+            
+            # If all windows have at least one trajectory, check for convergence
+            if len(windows) == 0:
+                if self.potentialOfMeanForce is None:
+                    self.calculatePotentialOfMeanForce(xi_min, xi_max, bins)
+                    potentialOfMeanForce0 = numpy.zeros_like(self.potentialOfMeanForce)
+                else:
+                    potentialOfMeanForce0 = self.potentialOfMeanForce.copy()
+                    self.calculatePotentialOfMeanForce(xi_min, xi_max, bins)
+                potentialOfMeanForce = self.potentialOfMeanForce
+                maxPotentialOfMeanForce = numpy.max(potentialOfMeanForce[1,:])
+                for i in range(1, bins):
+                    error = abs(potentialOfMeanForce[1,i] - potentialOfMeanForce0[1,i])
+                    if error > tolerance * abs(maxPotentialOfMeanForce):
+                        # All windows after this point must be sampled again
+                        # But don't sample if we've maxed out the number of
+                        # sampling points for this window
+                        for window in self.umbrellaWindows:
+                            evolutionSteps = int(round(window.evolutionTime / self.dt))
+                            if window.xi >= potentialOfMeanForce[0,i-1] and window.count < window.trajectories * evolutionSteps:
+                                windows.append(window)
+                        break                    
+        
+        # Calculate the final potential of mean force
+        self.calculatePotentialOfMeanForce(xi_min, xi_max, bins)
         
         logging.info('')
         
-    def computePotentialOfMeanForce(self, xi_min, xi_max, bins):
+    def calculatePotentialOfMeanForce(self, xi_min, xi_max, bins):
         """
         Compute the potential of mean force of the system at the given
         temperature by integrating over the given reaction coordinate range
         using the given number of bins. This requires that you have previously
         used umbrella sampling to determine the mean and variance in each bin.
-        """
-        # Don't continue if the user hasn't generated the umbrella sampling yet
-        if not self.umbrellaWindows:
-            raise RPMDError('You must run conductUmbrellaSampling() before running computePotentialOfMeanForce().')
-        
-        logging.info('****************************')
-        logging.info('RPMD potential of mean force')
-        logging.info('****************************')
-        logging.info('')
-        
-        logging.info('Parameters')
-        logging.info('==========')
-        logging.info('Temperature                             = {0:g} K'.format(self.T))
-        logging.info('Lower bound of reaction coordinate      = {0:g}'.format(xi_min))
-        logging.info('Upper bound of reaction coordinate      = {0:g}'.format(xi_max))
-        logging.info('Number of bins                          = {0:d}'.format(bins))
-        logging.info('')
-        
+        """               
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        potentialFilename = os.path.join(workingDirectory, 'potential_of_mean_force_{0:d}.dat'.format(self.Nbeads))
+        potentialFilename = os.path.join(workingDirectory, 'potential_of_mean_force.dat')
 
         Nwindows = len(self.umbrellaWindows)
         
@@ -641,7 +660,6 @@ class RPMD:
         self.savePotentialOfMeanForce(potentialFilename)
 
     def computeRecrossingFactor(self, 
-                                Nbeads, 
                                 dt, 
                                 equilibrationTime,
                                 childTrajectories,
@@ -649,6 +667,7 @@ class RPMD:
                                 childEvolutionTime,
                                 childSamplingTime,
                                 thermostat,
+                                tolerance=1e-6,
                                 processes=1,
                                 xi_current=None,
                                 saveParentTrajectory=False, 
@@ -694,7 +713,6 @@ class RPMD:
         
         # Set the parameters for the RPMD calculation
         self.dt = dt
-        self.Nbeads = Nbeads
         self.kforce = 0.0
         geometry = self.transitionStates[0].geometry
         self.xi_current = xi_current
@@ -718,7 +736,7 @@ class RPMD:
         logging.info('Parameters')
         logging.info('==========')
         logging.info('Temperature                             = {0:g} K'.format(self.T))
-        logging.info('Number of beads                         = {0:d}'.format(Nbeads))
+        logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
         logging.info('Reaction coordinate                     = {0:g}'.format(xi_current))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Total number of child trajectories      = {0:d}'.format(childTrajectories))
@@ -730,7 +748,7 @@ class RPMD:
         
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        recrossingFilename = os.path.join(workingDirectory, 'recrossing_factor_{0:d}.dat'.format(Nbeads))
+        recrossingFilename = os.path.join(workingDirectory, 'recrossing_factor.dat')
 
         # Look for existing output file for this calculation
         # If a file exists, we won't repeat the calculation unless more
@@ -753,6 +771,8 @@ class RPMD:
             logging.info('Output will be saved to {0}'.format(recrossingFilename))
         logging.info('')
 
+        recrossingFactor = []
+        
         if childCount < childTrajectories:
 
             self.activate()
@@ -781,7 +801,8 @@ class RPMD:
             # Continue evolving parent trajectory, interrupting to sample sets of
             # child trajectories in order to update the recrossing factor
             parentIter = 0
-            while childCount < childTrajectories:
+            done = False
+            while childCount < childTrajectories and not done:
                 
                 logging.info('Sampling {0} child trajectories at {1:g} ps...'.format(childrenPerSampling, parentIter * childSamplingSteps * self.dt * 2.418884326505e-5))
     
@@ -818,6 +839,21 @@ class RPMD:
                 logging.info('Current value of transmission coefficient = {0:.6f}'.format(kappa_num[-1] / kappa_denom))
                 logging.info('')
                 
+                # Evaluate convergence over several iterations to lessen
+                # chance that we have stochastically sampled such that the
+                # result did not change
+                # The number of iterations to consider is up for debate, but
+                # is clearly more than one
+                recrossingFactor.append(kappa_num[-1] / kappa_denom)
+                if len(recrossingFactor) > 10:
+                    done = True
+                    for i in range(-10, 0):
+                        factor0 = recrossingFactor[-i]
+                        factor = recrossingFactor[-1]
+                        if abs(factor0 - factor) > tolerance * abs(factor):
+                            done = False
+                            break
+                
                 # Further evolve parent trajectory while constraining to dividing
                 # surface and sampling from Andersen thermostat
                 logging.info('Evolving parent trajectory to {0:g} ps...'.format((parentIter+1) * childSamplingSteps * self.dt * 2.418884326505e-5))
@@ -825,7 +861,7 @@ class RPMD:
             
                 parentIter += 1
             
-            logging.info('Finished sampling of {0:d} child trajectories.'.format(childTrajectories))
+            logging.info('Finished sampling of {0:d} child trajectories.'.format(childCount))
             logging.info('')
         
         logging.info('Result of recrossing factor calculation:')
@@ -859,7 +895,7 @@ class RPMD:
         if path is not None:
             workingDirectory = path
         else:
-            workingDirectory = os.path.join(self.outputDirectory, '{0:g}'.format(self.T))
+            workingDirectory = os.path.join(self.outputDirectory, '{0:g}'.format(self.T), '{0:d}'.format(self.Nbeads))
             
         # Create the working directory on disk
         try:
@@ -982,34 +1018,38 @@ class RPMD:
                 Nbeads = int(data[0])
             elif param == 'Time step':
                 dt = float(data[0]) / 2.418884326505e-5
-            elif param == 'Number of umbrella integration windows':
-                Nxi = int(data[0])
+            elif param == 'Reaction coordinate':
+                xi = float(data[0])
+            elif param == 'Equilibration time':
+                equilibrationSteps = int(data[2][1:])
+            elif param == 'Trajectory evolution time':
+                evolutionSteps = int(data[2][1:])
+            elif param == 'Force constant':
+                kforce = float(data[0])
             else:
-                raise RPMDError('Invalid umbrella configurations parameter {0!r}.'.format(param))
+                raise RPMDError('Invalid umbrella sampling parameter {0!r}.'.format(param))
             line = f.readline()
         
         # Data
-        xi_list = []; av_list = []; av2_list = []; count_list = []
+        av_list = []; av2_list = []; count_list = []
         line = f.readline()
         line = f.readline()
         line = f.readline()
         line = f.readline()
         while line != '' and len(line) > 8 and line[0:8] != '========':
-            xi, av, av2, count, xi_mean, xi_var = line.split()
-            xi_list.append(float(xi))
+            av, av2, count, xi_mean, xi_var = line.split()
             av_list.append(float(av))
             av2_list.append(float(av2))
             count_list.append(int(count))
             line = f.readline().strip()
         
-        xi_list = numpy.array(xi_list)
         av_list = numpy.array(av_list)
         av2_list = numpy.array(av2_list)
         count_list = numpy.array(count_list)
         
         f.close()
         
-        return xi_list, av_list, av2_list, count_list
+        return xi, av_list, av2_list, count_list
         
     def savePotentialOfMeanForce(self, path):
         """
