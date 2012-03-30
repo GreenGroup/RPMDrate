@@ -140,7 +140,7 @@ class RPMD:
     
     """
 
-    def __init__(self, label, T, reactants, transitionState, potential, outputDirectory='.'):
+    def __init__(self, label, T, Nbeads, reactants, transitionState, potential, outputDirectory='.'):
         """
         Initialize an RPMD object. The `mass` of each atom should be given in
         g/mol, while the `Rinf` value should be given in angstroms. (They will
@@ -148,6 +148,7 @@ class RPMD:
         """
         self.label = label
         self.T = float(quantity.convertTemperature(T, "K"))
+        self.Nbeads = Nbeads
         self.mass = reactants.mass
         self.Natoms = len(self.mass)
         self.reactants = reactants
@@ -157,7 +158,6 @@ class RPMD:
         
         self.beta = 4.35974417e-18 / (constants.kB * self.T)
         self.dt = 0
-        self.Nbeads = 0
         self.xi_current = 0
         self.mode = 0
         
@@ -343,7 +343,7 @@ class RPMD:
         workingDirectory = self.createWorkingDirectory()
         # The umbrella configurations are independent of temperature and number
         # of beads, so store them in the top-level directory
-        configurationsFilename = os.path.realpath(os.path.join(workingDirectory, '..', 'umbrella_configurations.dat'))
+        configurationsFilename = os.path.realpath(os.path.join(workingDirectory, '..', '..', 'umbrella_configurations.dat'))
 
         # Look for existing output file for this calculation
         # If a file exists, we won't repeat the calculation
@@ -430,10 +430,10 @@ class RPMD:
         self.saveUmbrellaConfigurations(configurationsFilename, evolutionSteps)
     
     def conductUmbrellaSampling(self, 
-                                Nbeads, 
                                 dt, 
                                 windows,
                                 thermostat,
+                                tolerance=1e-4,
                                 processes=1,
                                 saveTrajectories=False):
         """
@@ -447,7 +447,6 @@ class RPMD:
         
         # Set the parameters for the RPMD calculation
         self.dt = dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
-        self.Nbeads = Nbeads
         Nwindows = len(windows)
         self.thermostat = thermostat
         self.mode = 1
@@ -464,7 +463,7 @@ class RPMD:
         logging.info('Parameters')
         logging.info('==========')
         logging.info('Temperature                             = {0:g} K'.format(self.T))
-        logging.info('Number of beads                         = {0:d}'.format(Nbeads))
+        logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Number of umbrella integration windows  = {0:d}'.format(Nwindows))
         logging.info('')
@@ -606,7 +605,7 @@ class RPMD:
         
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        potentialFilename = os.path.join(workingDirectory, 'potential_of_mean_force_{0:d}.dat'.format(self.Nbeads))
+        potentialFilename = os.path.join(workingDirectory, 'potential_of_mean_force.dat')
 
         Nwindows = len(self.umbrellaWindows)
         
@@ -643,7 +642,6 @@ class RPMD:
         self.savePotentialOfMeanForce(potentialFilename)
 
     def computeRecrossingFactor(self, 
-                                Nbeads, 
                                 dt, 
                                 equilibrationTime,
                                 childTrajectories,
@@ -696,7 +694,6 @@ class RPMD:
         
         # Set the parameters for the RPMD calculation
         self.dt = dt
-        self.Nbeads = Nbeads
         self.kforce = 0.0
         geometry = self.transitionStates[0].geometry
         self.xi_current = xi_current
@@ -720,7 +717,7 @@ class RPMD:
         logging.info('Parameters')
         logging.info('==========')
         logging.info('Temperature                             = {0:g} K'.format(self.T))
-        logging.info('Number of beads                         = {0:d}'.format(Nbeads))
+        logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
         logging.info('Reaction coordinate                     = {0:g}'.format(xi_current))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Total number of child trajectories      = {0:d}'.format(childTrajectories))
@@ -732,7 +729,7 @@ class RPMD:
         
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        recrossingFilename = os.path.join(workingDirectory, 'recrossing_factor_{0:d}.dat'.format(Nbeads))
+        recrossingFilename = os.path.join(workingDirectory, 'recrossing_factor.dat')
 
         # Look for existing output file for this calculation
         # If a file exists, we won't repeat the calculation unless more
@@ -861,7 +858,7 @@ class RPMD:
         if path is not None:
             workingDirectory = path
         else:
-            workingDirectory = os.path.join(self.outputDirectory, '{0:g}'.format(self.T))
+            workingDirectory = os.path.join(self.outputDirectory, '{0:g}'.format(self.T), '{0:d}'.format(self.Nbeads))
             
         # Create the working directory on disk
         try:
