@@ -341,7 +341,9 @@ class RPMD:
 
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        configurationsFilename = os.path.join(workingDirectory, 'umbrella_configurations.dat')
+        # The umbrella configurations are independent of temperature and number
+        # of beads, so store them in the top-level directory
+        configurationsFilename = os.path.realpath(os.path.join(workingDirectory, '..', 'umbrella_configurations.dat'))
 
         # Look for existing output file for this calculation
         # If a file exists, we won't repeat the calculation
