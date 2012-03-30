@@ -667,6 +667,7 @@ class RPMD:
                                 childEvolutionTime,
                                 childSamplingTime,
                                 thermostat,
+                                tolerance=1e-6,
                                 processes=1,
                                 xi_current=None,
                                 saveParentTrajectory=False, 
@@ -770,6 +771,8 @@ class RPMD:
             logging.info('Output will be saved to {0}'.format(recrossingFilename))
         logging.info('')
 
+        recrossingFactor = []
+        
         if childCount < childTrajectories:
 
             self.activate()
@@ -798,7 +801,8 @@ class RPMD:
             # Continue evolving parent trajectory, interrupting to sample sets of
             # child trajectories in order to update the recrossing factor
             parentIter = 0
-            while childCount < childTrajectories:
+            done = False
+            while childCount < childTrajectories and not done:
                 
                 logging.info('Sampling {0} child trajectories at {1:g} ps...'.format(childrenPerSampling, parentIter * childSamplingSteps * self.dt * 2.418884326505e-5))
     
@@ -835,6 +839,21 @@ class RPMD:
                 logging.info('Current value of transmission coefficient = {0:.6f}'.format(kappa_num[-1] / kappa_denom))
                 logging.info('')
                 
+                # Evaluate convergence over several iterations to lessen
+                # chance that we have stochastically sampled such that the
+                # result did not change
+                # The number of iterations to consider is up for debate, but
+                # is clearly more than one
+                recrossingFactor.append(kappa_num[-1] / kappa_denom)
+                if len(recrossingFactor) > 10:
+                    done = True
+                    for i in range(-10, 0):
+                        factor0 = recrossingFactor[-i]
+                        factor = recrossingFactor[-1]
+                        if abs(factor0 - factor) > tolerance * abs(factor):
+                            done = False
+                            break
+                
                 # Further evolve parent trajectory while constraining to dividing
                 # surface and sampling from Andersen thermostat
                 logging.info('Evolving parent trajectory to {0:g} ps...'.format((parentIter+1) * childSamplingSteps * self.dt * 2.418884326505e-5))
@@ -842,7 +861,7 @@ class RPMD:
             
                 parentIter += 1
             
-            logging.info('Finished sampling of {0:d} child trajectories.'.format(childTrajectories))
+            logging.info('Finished sampling of {0:d} child trajectories.'.format(childCount))
             logging.info('')
         
         logging.info('Result of recrossing factor calculation:')
