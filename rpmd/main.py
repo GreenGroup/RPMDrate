@@ -313,7 +313,7 @@ class RPMD:
         
         # Set the parameters for the RPMD calculation
         self.dt = dt
-        self.Nbeads = 1
+        Nbeads = 1
         xi_list = numpy.array(xi_list)
         Nxi = len(xi_list)
         geometry = self.transitionStates[0].geometry
@@ -333,7 +333,7 @@ class RPMD:
         logging.info('Parameters')
         logging.info('==========')
         logging.info('Temperature                             = {0:g} K'.format(self.T))
-        logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
+        logging.info('Number of beads                         = {0:d}'.format(Nbeads))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Number of umbrella integration windows  = {0:d}'.format(Nxi))
         logging.info('Trajectory evolution time               = {0:g} ps ({1:d} steps)'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
@@ -369,7 +369,6 @@ class RPMD:
 
         # Only use one bead to generate initial positions in each window
         # (We will equilibrate within each window to allow the beads to separate)
-        self.Nbeads = 1
         self.activate()
 
         # Seed the random number generator
@@ -377,10 +376,10 @@ class RPMD:
 
         # Generate initial position using transition state geometry
         # (All beads start at same position)
-        q = numpy.zeros((3,self.Natoms,self.Nbeads), order='F')
+        q = numpy.zeros((3,self.Natoms,Nbeads), order='F')
         for i in range(3):
             for j in range(self.Natoms):
-                for k in range(self.Nbeads):
+                for k in range(Nbeads):
                     q[i,j,k] = geometry[i,j]
 
         # Find the window nearest to the transition state dividing surface
@@ -397,7 +396,7 @@ class RPMD:
             
             # Equilibrate in this window
             logging.info('Generating configuration at xi = {0:g} for {1:g} ps...'.format(xi_current, evolutionSteps * self.dt * 2.418884326505e-5))
-            p = self.sampleMomentum()
+            p = self.sampleMomentum()[:,:,0:Nbeads]
             result = system.equilibrate(0, p, q, evolutionSteps, xi_current, self.potential, kforce[l], False, False)
             logging.info('Finished generating configuration at xi = {0:g}.'.format(xi_current))
             q_initial[:,:,l] = q[:,:,0]
@@ -410,7 +409,7 @@ class RPMD:
             
             # Equilibrate in this window
             logging.info('Generating configuration at xi = {0:g} for {1:g} ps...'.format(xi_current, evolutionSteps * self.dt * 2.418884326505e-5))
-            p = self.sampleMomentum()
+            p = self.sampleMomentum()[:,:,0:Nbeads]
             result = system.equilibrate(0, p, q, evolutionSteps, xi_current, self.potential, kforce[l], False, False)
             logging.info('Finished generating configuration at xi = {0:g}.'.format(xi_current))
             q_initial[:,:,l] = q[:,:,0]
