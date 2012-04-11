@@ -1357,7 +1357,10 @@ class RPMD:
         k_QTST_s0 = 4 * constants.pi * Rinf * Rinf / numpy.sqrt(2 * constants.pi * self.beta * mu)
         
         # Compute the static factor
-        W1 = numpy.max(self.potentialOfMeanForce[1,:])
+        # (Use the same xi_current as used in the recrossing factor calculation)
+        import scipy.interpolate
+        f = scipy.interpolate.InterpolatedUnivariateSpline(self.potentialOfMeanForce[0,:], self.potentialOfMeanForce[1,:])
+        W1 = f(self.xi_current)
         W0 = self.potentialOfMeanForce[1,0]
         staticFactor = numpy.exp(-self.beta * (W1 - W0))
         
