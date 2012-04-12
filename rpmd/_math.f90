@@ -106,8 +106,9 @@ subroutine rfft(x,N)
     double precision, intent(inout) :: x(N)
 
     integer, parameter :: Nmax = 1024
-    integer :: Np, plan
+    integer :: Np
     double precision :: copy(Nmax), factor
+    integer*8 :: plan
 
     data Np /0/
     save copy, factor, plan, Np
@@ -138,8 +139,9 @@ subroutine irfft(x,N)
     double precision, intent(inout) :: x(N)
 
     integer, parameter :: Nmax = 1024
-    integer :: Np, plan
+    integer :: Np
     double precision :: copy(Nmax), factor
+    integer*8 :: plan
 
     data Np /0/
     save copy, factor, plan, Np
