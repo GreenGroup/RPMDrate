@@ -35,7 +35,6 @@ import sys
 import math
 import numpy
 import logging
-import multiprocessing
 
 import rpmd.constants as constants
 import rpmd.quantity as quantity
@@ -454,7 +453,16 @@ class RPMD:
         self.mode = 1
         
         # Create a pool of subprocesses to farm out the individual trajectories to
-        pool = multiprocessing.Pool(processes=processes)
+        try:
+            import multiprocessing
+            if processes > 1:
+                pool = multiprocessing.Pool(processes=processes)
+            else:
+                pool = None
+        except ImportError:
+            if processes > 1:
+                raise ValueError('The "multiprocessing" package was not found in this Python installation; you must install this package or set processes to 1.')
+            pool = None
         results = []
 
         logging.info('****************************')
@@ -553,15 +561,21 @@ class RPMD:
                 logging.info('Spawning sampling trajectory at xi = {0:g}...'.format(window.xi))
                 p = self.sampleMomentum()
                 args = (self, window.xi, p, q, windowEquilibrationSteps, windowEvolutionSteps, window.kforce, saveTrajectories)
-                results.append(pool.apply_async(runUmbrellaTrajectory, args))           
-        
+                if pool:
+                    results.append(pool.apply_async(runUmbrellaTrajectory, args))
+                else:
+                    results.append(runUmbrellaTrajectory(*args))
+                
             count = 0
             windows0 = windows
             for window in windows:
                 logging.info('Processing trajectory at xi = {0:g}...'.format(window.xi))
                     
                 # This line will block until the trajectory finishes
-                dav, dav2, dcount = results[count].get()
+                if pool:
+                    dav, dav2, dcount = results[count].get()
+                else:
+                    dav, dav2, dcount = results[count]
                 
                 # Update the mean and variance with the results from this trajectory
                 # Note that these are counted at each time step in each trajectory
@@ -724,7 +738,16 @@ class RPMD:
         childCount = 0
         
         # Create a pool of subprocesses to farm out the individual trajectories to
-        pool = multiprocessing.Pool(processes=processes)
+        try:
+            import multiprocessing
+            if processes > 1:
+                pool = multiprocessing.Pool(processes=processes)
+            else:
+                pool = None
+        except ImportError:
+            if processes > 1:
+                raise ValueError('The "multiprocessing" package was not found in this Python installation; you must install this package or set processes to 1.')
+            pool = None
         results = []
 
         logging.info('**********************')
@@ -814,18 +837,27 @@ class RPMD:
                     p_child = self.sampleMomentum()
                     
                     args = (self, xi_current, -p_child, q_child, childEvolutionSteps, saveChildTrajectory)
-                    results.append(pool.apply_async(runRecrossingTrajectory, args))           
+                    if pool:
+                        results.append(pool.apply_async(runRecrossingTrajectory, args))
+                    else:
+                        results.append(runRecrossingTrajectory(*args))           
                     childCount += 1
                     
                     saveChildTrajectory = False
                     
                     args = (self, xi_current, p_child, q_child, childEvolutionSteps, saveChildTrajectory)
-                    results.append(pool.apply_async(runRecrossingTrajectory, args))
+                    if pool:
+                        results.append(pool.apply_async(runRecrossingTrajectory, args))
+                    else:
+                        results.append(runRecrossingTrajectory(*args))           
                     childCount += 1         
     
                 for child in range(childrenPerSampling):
                     # This line will block until the child trajectory finishes
-                    num, denom = results[child].get()
+                    if pool:
+                        num, denom = results[child].get()
+                    else:
+                        num, denom = results[child]
                     # Update the numerator and denominator of the recrossing factor expression
                     kappa_num += num
                     kappa_denom += denom
