@@ -201,7 +201,8 @@ contains
     end subroutine recrossing_trajectory
 
     subroutine umbrella_trajectory(t, p, q, Natoms, Nbeads, steps, &
-        xi_current, potential, kforce, save_trajectory, av, av2, result)
+        xi_current, potential, kforce, save_trajectory, av, av2, &
+        actual_steps, result)
 
         implicit none
 
@@ -212,12 +213,15 @@ contains
         integer, intent(in) :: steps
         integer, intent(in) :: save_trajectory
         double precision, intent(out) :: av, av2
-        integer, intent(out) :: result
+        integer, intent(out) :: actual_steps, result
 
         double precision :: V(Nbeads), dVdq(3,Natoms,Nbeads)
         double precision :: xi, dxi(3,Natoms), d2xi(3,Natoms,3,Natoms)
         double precision :: centroid(3,Natoms)
         integer :: step, andersen_sampling_steps
+
+        result = 0
+        actual_steps = steps
 
         av = 0.0d0
         av2 = 0.0d0
@@ -251,6 +255,10 @@ contains
         do step = 1, steps
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
                 xi_current, potential, kforce, 0, result)
+            if (result .ne. 0) then
+                actual_steps = step - 1
+                exit
+            end if
             if (result .ne. 0) exit
             if (save_trajectory .eq. 1) call update_vmd_output(q, Natoms, Nbeads, 777, 888)
 

@@ -54,7 +54,7 @@ python module _main ! in
                 double precision intent(inout) :: kappa_denom
                 integer intent(out) :: result
             end subroutine recrossing_trajectory
-            subroutine umbrella_trajectory(t,p,q,natoms,nbeads,steps,xi_current,potential,kforce,save_trajectory,av,av2,result) ! in :_main:rpmd/_main.f90:system
+            subroutine umbrella_trajectory(t,p,q,natoms,nbeads,steps,xi_current,potential,kforce,save_trajectory,av,av2,actual_steps,result) ! in :_main:rpmd/_main.f90:system
                 use _main__user__routines
                 double precision intent(inout) :: t
                 double precision dimension(3,natoms,nbeads),intent(inout) :: p
@@ -68,6 +68,7 @@ python module _main ! in
                 integer intent(in) :: save_trajectory
                 double precision intent(out) :: av
                 double precision intent(out) :: av2
+                integer intent(out) :: actual_steps
                 integer intent(out) :: result
             end subroutine umbrella_trajectory
             subroutine verlet_step(t,p,q,v,dvdq,xi,dxi,d2xi,natoms,nbeads,xi_current,potential,kforce,constrain,result) ! in :_main:rpmd/_main.f90:system
