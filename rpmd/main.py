@@ -67,17 +67,24 @@ def runUmbrellaTrajectory(rpmd, xi_current, p, q, equilibrationSteps, evolutionS
 
 def runRecrossingTrajectory(rpmd, xi_current, p, q, evolutionSteps, saveTrajectory):
     """
-    Run an individual recrossing factor child trajectory, returning the 
-    contributions to the numerator and denominator of the recrossing factor
-    from this trajectory.
+    Run an individual pair of recrossing factor child trajectories, returning
+    the contributions to the numerator and denominator of the recrossing factor
+    from this trajectory pair. We use pairs of trajectories so that we always
+    sample in the positive and negative directions of the initial sampled
+    momenta.
     """
     rpmd.activate()
-    p = numpy.asfortranarray(p)
-    q = numpy.asfortranarray(q)
-    kappa_num = numpy.zeros(evolutionSteps, order='F')
-    kappa_denom = numpy.array(0.0, order='F')
-    result = system.recrossing_trajectory(0, p, q, xi_current, rpmd.potential, saveTrajectory, kappa_num, kappa_denom)
-    return kappa_num, kappa_denom
+    p1 = -numpy.asfortranarray(p.copy())
+    q1 = numpy.asfortranarray(q.copy())
+    p2 = numpy.asfortranarray(p.copy())
+    q2 = numpy.asfortranarray(q.copy())
+    kappa_num1 = numpy.zeros(evolutionSteps, order='F')
+    kappa_denom1 = numpy.array(0.0, order='F')
+    kappa_num2 = numpy.zeros(evolutionSteps, order='F')
+    kappa_denom2 = numpy.array(0.0, order='F')
+    result1 = system.recrossing_trajectory(0, p1, q1, xi_current, rpmd.potential, saveTrajectory, kappa_num1, kappa_denom1)
+    result2 = system.recrossing_trajectory(0, p2, q2, xi_current, rpmd.potential, saveTrajectory, kappa_num2, kappa_denom2)
+    return kappa_num2, kappa_denom2
 
 ################################################################################
 
@@ -841,18 +848,9 @@ class RPMD:
                         results.append(pool.apply_async(runRecrossingTrajectory, args))
                     else:
                         results.append(runRecrossingTrajectory(*args))           
-                    childCount += 1
-                    
-                    saveChildTrajectory = False
-                    
-                    args = (self, xi_current, p_child, q_child, childEvolutionSteps, saveChildTrajectory)
-                    if pool:
-                        results.append(pool.apply_async(runRecrossingTrajectory, args))
-                    else:
-                        results.append(runRecrossingTrajectory(*args))           
-                    childCount += 1         
+                    childCount += 2
     
-                for child in range(childrenPerSampling):
+                for child in range(childrenPerSampling / 2):
                     # This line will block until the child trajectory finishes
                     if pool:
                         num, denom = results[child].get()
