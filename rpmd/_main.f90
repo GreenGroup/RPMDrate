@@ -99,7 +99,12 @@ contains
 
         call get_centroid(q, Natoms, Nbeads, centroid)
         call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
-        call potential(q, V, dVdq, Natoms, Nbeads)
+        call potential(q, V, dVdq, Natoms, Nbeads, result)
+        if (result > 0) then
+            ! The initial position is unphysical, so abort
+            result = -1
+            return
+        end if
         if (mode .eq. 1) then
             call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current, kforce)
             call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
@@ -169,8 +174,13 @@ contains
 
         call get_centroid(q, Natoms, Nbeads, centroid)
         call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
-        call potential(q, V, dVdq, Natoms, Nbeads)
-
+        call potential(q, V, dVdq, Natoms, Nbeads, result)
+        if (result > 0) then
+            ! The initial position is unphysical, so abort
+            result = -1
+            return
+        end if
+ 
         call get_recrossing_velocity(p, dxi, Natoms, Nbeads, vs)
         call get_recrossing_flux(dxi, Natoms, fs)
         if (vs .gt. 0) kappa_denom = kappa_denom + vs / fs
@@ -229,7 +239,12 @@ contains
 
         call get_centroid(q, Natoms, Nbeads, centroid)
         call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
-        call potential(q, V, dVdq, Natoms, Nbeads)
+        call potential(q, V, dVdq, Natoms, Nbeads, result)
+        if (result > 0) then
+            ! The initial position is unphysical, so abort
+            result = -1
+            return
+        end if
         call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current, kforce)
         call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
 
@@ -330,7 +345,8 @@ contains
         call get_reaction_coordinate(centroid, Natoms, xi_current, xi, dxi, d2xi)
 
         ! Update potential and forces using new position
-        call potential(q, V, dVdq, Natoms, Nbeads)
+        call potential(q, V, dVdq, Natoms, Nbeads, result)
+        if (result > 0) return
         if (mode .eq. 1) then
             call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current, kforce)
             call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)

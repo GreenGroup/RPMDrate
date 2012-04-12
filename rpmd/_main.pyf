@@ -3,12 +3,13 @@
 
 python module _main__user__routines 
     interface
-        subroutine potential(q,v,dvdq,natoms,nbeads)
+        subroutine potential(q,v,dvdq,natoms,nbeads,info)
             double precision dimension(3,natoms,nbeads),intent(in) :: q
             double precision dimension(nbeads),intent(out),depend(nbeads) :: v
             double precision dimension(3,natoms,nbeads),intent(out),depend(natoms,nbeads) :: dvdq
             integer, optional,intent(in),check(shape(q,1)==natoms),depend(q) :: natoms=shape(q,1)
             integer, optional,intent(in),check(shape(q,2)==nbeads),depend(q) :: nbeads=shape(q,2)
+            integer, intent(out) :: info
         end subroutine potential
     end interface
 end python module _main__user__routines
