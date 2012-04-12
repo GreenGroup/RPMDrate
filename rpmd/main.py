@@ -59,11 +59,17 @@ def runUmbrellaTrajectory(rpmd, xi_current, p, q, equilibrationSteps, evolutionS
     first and second moments of the reaction coordinate at each time step.
     """
     rpmd.activate()
-    p = numpy.asfortranarray(p)
-    q = numpy.asfortranarray(q)
-    result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, rpmd.potential, kforce, False, saveTrajectory)
-    dav, dav2, result = system.umbrella_trajectory(0, p, q, evolutionSteps, xi_current, rpmd.potential, kforce, saveTrajectory)
-    return dav, dav2, evolutionSteps
+    steps = 0
+    while steps < evolutionSteps:
+        p = numpy.asfortranarray(p.copy())
+        q = numpy.asfortranarray(q.copy())
+        result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, rpmd.potential, kforce, False, saveTrajectory)
+        if result != 0: continue
+        dav, dav2, actualSteps, result = system.umbrella_trajectory(0, p, q, evolutionSteps - steps, xi_current, rpmd.potential, kforce, saveTrajectory)
+        steps += actualSteps
+        if result != 0: continue
+    
+    return dav, dav2, steps
 
 def runRecrossingTrajectory(rpmd, xi_current, p, q, evolutionSteps, saveTrajectory):
     """
@@ -74,17 +80,25 @@ def runRecrossingTrajectory(rpmd, xi_current, p, q, evolutionSteps, saveTrajecto
     momenta.
     """
     rpmd.activate()
-    p1 = -numpy.asfortranarray(p.copy())
-    q1 = numpy.asfortranarray(q.copy())
-    p2 = numpy.asfortranarray(p.copy())
-    q2 = numpy.asfortranarray(q.copy())
-    kappa_num1 = numpy.zeros(evolutionSteps, order='F')
-    kappa_denom1 = numpy.array(0.0, order='F')
-    kappa_num2 = numpy.zeros(evolutionSteps, order='F')
-    kappa_denom2 = numpy.array(0.0, order='F')
-    result1 = system.recrossing_trajectory(0, p1, q1, xi_current, rpmd.potential, saveTrajectory, kappa_num1, kappa_denom1)
-    result2 = system.recrossing_trajectory(0, p2, q2, xi_current, rpmd.potential, saveTrajectory, kappa_num2, kappa_denom2)
-    return kappa_num2, kappa_denom2
+    result1 = 1; result2 = 1
+    while result1 != 0 or result2 != 0:
+        # Trajectory for the negative of the sampled momenta
+        p1 = -numpy.asfortranarray(p.copy())
+        q1 = numpy.asfortranarray(q.copy())
+        kappa_num1 = numpy.zeros(evolutionSteps, order='F')
+        kappa_denom1 = numpy.array(0.0, order='F')
+        result1 = system.recrossing_trajectory(0, p1, q1, xi_current, rpmd.potential, saveTrajectory, kappa_num1, kappa_denom1)
+        if result1 != 0: continue
+
+        # Trajectory for the positive of the sampled momenta
+        p2 = numpy.asfortranarray(p.copy())
+        q2 = numpy.asfortranarray(q.copy())
+        kappa_num2 = numpy.zeros(evolutionSteps, order='F')
+        kappa_denom2 = numpy.array(0.0, order='F')
+        result2 = system.recrossing_trajectory(0, p2, q2, xi_current, rpmd.potential, saveTrajectory, kappa_num2, kappa_denom2)
+        if result2 != 0: continue
+    
+    return kappa_num1 + kappa_num2, kappa_denom1 + kappa_denom2
 
 ################################################################################
 
@@ -811,18 +825,20 @@ class RPMD:
     
             # Generate initial position using transition state geometry
             # (All beads start at same position)
-            q = numpy.zeros((3,self.Natoms,self.Nbeads), order='F')
+            q0 = numpy.zeros((3,self.Natoms,self.Nbeads), order='F')
             for i in range(3):
                 for j in range(self.Natoms):
                     for k in range(self.Nbeads):
-                        q[i,j,k] = geometry[i,j]
-            # Sample initial momentum from normal distribution
-            p = self.sampleMomentum()
+                        q0[i,j,k] = geometry[i,j]
             
             # Equilibrate parent trajectory while constraining to dividing surface
             # and sampling from Andersen thermostat
             logging.info('Equilibrating parent trajectory for {0:g} ps...'.format(equilibrationSteps * self.dt * 2.418884326505e-5))
-            result = system.equilibrate(0, p, q, equilibrationSteps, self.xi_current, self.potential, 0.0, True, saveParentTrajectory)
+            result = 1
+            while result != 0:
+                q = numpy.asfortranarray(q0.copy())
+                p = self.sampleMomentum()            
+                result = system.equilibrate(0, p, q, equilibrationSteps, self.xi_current, self.potential, 0.0, True, saveParentTrajectory)
             
             logging.info('Finished equilibrating parent trajectory.')
             logging.info('')
