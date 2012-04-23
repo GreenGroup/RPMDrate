@@ -83,19 +83,21 @@ def runRecrossingTrajectory(rpmd, xi_current, p, q, evolutionSteps, saveTrajecto
     result1 = 1; result2 = 1
     while result1 != 0 or result2 != 0:
         # Trajectory for the negative of the sampled momenta
-        p1 = -numpy.asfortranarray(p.copy())
-        q1 = numpy.asfortranarray(q.copy())
+        t1 = numpy.array(0.0, order='F')
+        p1 = (-p).copy('F')
+        q1 = q.copy('F')
         kappa_num1 = numpy.zeros(evolutionSteps, order='F')
         kappa_denom1 = numpy.array(0.0, order='F')
-        result1 = system.recrossing_trajectory(0, p1, q1, xi_current, rpmd.potential, saveTrajectory, kappa_num1, kappa_denom1)
+        result1 = system.recrossing_trajectory(t1, p1, q1, xi_current, rpmd.potential, saveTrajectory, kappa_num1, kappa_denom1)
         if result1 != 0: continue
 
         # Trajectory for the positive of the sampled momenta
-        p2 = numpy.asfortranarray(p.copy())
-        q2 = numpy.asfortranarray(q.copy())
+        t2 = numpy.array(0.0, order='F')
+        p2 = p.copy('F')
+        q2 = q.copy('F')
         kappa_num2 = numpy.zeros(evolutionSteps, order='F')
         kappa_denom2 = numpy.array(0.0, order='F')
-        result2 = system.recrossing_trajectory(0, p2, q2, xi_current, rpmd.potential, saveTrajectory, kappa_num2, kappa_denom2)
+        result2 = system.recrossing_trajectory(t2, p2, q2, xi_current, rpmd.potential, saveTrajectory, kappa_num2, kappa_denom2)
         if result2 != 0: continue
     
     return kappa_num1 + kappa_num2, kappa_denom1 + kappa_denom2
