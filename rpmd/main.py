@@ -1402,7 +1402,7 @@ class RPMD:
         mA = self.reactants.totalMass1
         mB = self.reactants.totalMass2
         mu = mA * mB / (mA + mB)
-        k_QTST_s0 = 4 * constants.pi * Rinf * Rinf / numpy.sqrt(2 * constants.pi * self.beta * mu)
+        k_QTST_s0 = float(4 * constants.pi * Rinf * Rinf / numpy.sqrt(2 * constants.pi * self.beta * mu))
         
         # Compute the static factor
         # (Use the same xi_current as used in the recrossing factor calculation)
@@ -1410,13 +1410,13 @@ class RPMD:
         f = scipy.interpolate.InterpolatedUnivariateSpline(self.potentialOfMeanForce[0,:], self.potentialOfMeanForce[1,:])
         W1 = f(self.xi_current)
         W0 = self.potentialOfMeanForce[1,0]
-        staticFactor = numpy.exp(-self.beta * (W1 - W0))
+        staticFactor = float(numpy.exp(-self.beta * (W1 - W0)))
         
         # Correct the rate coefficient to the transition state dividing surface
         k_QTST = k_QTST_s0 * staticFactor
         
         # Correct the rate coefficient for recrossings
-        k_RPMD = k_QTST * self.recrossingFactor
+        k_RPMD = k_QTST * float(self.recrossingFactor)
                 
         fromAtomicUnits = 1e6 * ((5.2917721092e-11)**3 / 2.418884326505e-17) * constants.Na
         logging.info('Final value of rate coefficient = {0:g} cm^3/(mol*s)'.format(k_RPMD * fromAtomicUnits))
