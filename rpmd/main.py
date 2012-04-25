@@ -457,7 +457,6 @@ class RPMD:
                                     xi_max, 
                                     bins,
                                     thermostat,
-                                    tolerance=1e-4,
                                     processes=1,
                                     saveTrajectories=False):
         """
@@ -512,11 +511,8 @@ class RPMD:
         # Seed the random number generator
         random_init()
 
-        self.umbrellaWindows = windows
-        
         # Load any previous umbrella sampling trajectories for each window
-        windows = []
-        for window in self.umbrellaWindows:
+        for window in windows:
             umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:g}.dat'.format(window.xi))
             if os.path.exists(umbrellaFilename):
                 # Previous trajectories existed, so load them
@@ -549,20 +545,15 @@ class RPMD:
                 f.write('total av        total av2       count       xi_mean         xi_var\n')
                 f.write('=============== =============== =========== =============== ===============\n')
                 f.close()
-        
-                # Since there are no previous trajectories, we clearly need to
-                # sample this window
-                windows.append(window)
                 
         # This implementation is breadth-first, as we would rather get some
         # data in all windows than get lots of data in a few windows
-        first = True
-        while len(windows) > 0 or first:
-            
-            first = False
+        done = False
+        while not done:
             
             # Clear trajectories from previous iteration
             results = []
+            done = True
             
             # Run one trajectory for each window that needs more sampling
             for window in windows:
@@ -570,6 +561,13 @@ class RPMD:
                 equilibrationSteps = int(round(window.equilibrationTime / self.dt))
                 evolutionSteps = int(round(window.evolutionTime / self.dt))
             
+                if window.count >= window.trajectories * evolutionSteps:
+                    # We've already sampled enough in this window, so don't
+                    # do any more
+                    continue
+                
+                done = False
+                
                 # Load initial configuration using results from generateUmbrellaConfigurations()
                 q = numpy.empty((3,self.Natoms,self.Nbeads), order='F')
                 for xi, q_initial in self.umbrellaConfigurations:
@@ -585,20 +583,20 @@ class RPMD:
                 p = self.sampleMomentum()
                 args = (self, window.xi, p, q, windowEquilibrationSteps, windowEvolutionSteps, window.kforce, saveTrajectories)
                 if pool:
-                    results.append(pool.apply_async(runUmbrellaTrajectory, args))
+                    results.append([window, pool.apply_async(runUmbrellaTrajectory, args)])
                 else:
-                    results.append(runUmbrellaTrajectory(*args))
-                
-            count = 0
-            windows0 = windows
-            for window in windows:
+                    results.append([window, runUmbrellaTrajectory(*args)])
+              
+            count = 0  
+            for window, result in results:
+
                 logging.info('Processing trajectory at xi = {0:g}...'.format(window.xi))
                     
                 # This line will block until the trajectory finishes
                 if pool:
-                    dav, dav2, dcount = results[count].get()
+                    dav, dav2, dcount = result.get()
                 else:
-                    dav, dav2, dcount = results[count]
+                    dav, dav2, dcount = result
                 
                 # Update the mean and variance with the results from this trajectory
                 # Note that these are counted at each time step in each trajectory
@@ -620,31 +618,7 @@ class RPMD:
                 f.close()
                 
                 count += 1
-
-            windows = []
-            
-            # If all windows have at least one trajectory, check for convergence
-            if len(windows) == 0:
-                if self.potentialOfMeanForce is None:
-                    self.calculatePotentialOfMeanForce(xi_min, xi_max, bins)
-                    potentialOfMeanForce0 = numpy.zeros_like(self.potentialOfMeanForce)
-                else:
-                    potentialOfMeanForce0 = self.potentialOfMeanForce.copy()
-                    self.calculatePotentialOfMeanForce(xi_min, xi_max, bins)
-                potentialOfMeanForce = self.potentialOfMeanForce
-                maxPotentialOfMeanForce = numpy.max(potentialOfMeanForce[1,:])
-                for i in range(1, bins):
-                    error = abs(potentialOfMeanForce[1,i] - potentialOfMeanForce0[1,i])
-                    if error > tolerance * abs(maxPotentialOfMeanForce):
-                        # All windows after this point must be sampled again
-                        # But don't sample if we've maxed out the number of
-                        # sampling points for this window
-                        for window in self.umbrellaWindows:
-                            evolutionSteps = int(round(window.evolutionTime / self.dt))
-                            if window.xi >= potentialOfMeanForce[0,i-1] and window.count < window.trajectories * evolutionSteps:
-                                windows.append(window)
-                        break                    
-        
+                        
         # Calculate the final potential of mean force
         self.calculatePotentialOfMeanForce(xi_min, xi_max, bins)
         
@@ -703,7 +677,6 @@ class RPMD:
                                 childEvolutionTime,
                                 childSamplingTime,
                                 thermostat,
-                                tolerance=1e-6,
                                 processes=1,
                                 xi_current=None,
                                 saveParentTrajectory=False, 
@@ -848,8 +821,7 @@ class RPMD:
             # Continue evolving parent trajectory, interrupting to sample sets of
             # child trajectories in order to update the recrossing factor
             parentIter = 0
-            done = False
-            while childCount < childTrajectories and not done:
+            while childCount < childTrajectories:
                 
                 logging.info('Sampling {0} child trajectories at {1:g} ps...'.format(childrenPerSampling, parentIter * childSamplingSteps * self.dt * 2.418884326505e-5))
     
@@ -885,22 +857,7 @@ class RPMD:
                 
                 logging.info('Current value of transmission coefficient = {0:.6f}'.format(kappa_num[-1] / kappa_denom))
                 logging.info('')
-                
-                # Evaluate convergence over several iterations to lessen
-                # chance that we have stochastically sampled such that the
-                # result did not change
-                # The number of iterations to consider is up for debate, but
-                # is clearly more than one
-                recrossingFactor.append(kappa_num[-1] / kappa_denom)
-                if len(recrossingFactor) > 10:
-                    done = True
-                    for i in range(-10, 0):
-                        factor0 = recrossingFactor[-i]
-                        factor = recrossingFactor[-1]
-                        if abs(factor0 - factor) > tolerance * abs(factor):
-                            done = False
-                            break
-                
+                                
                 # Further evolve parent trajectory while constraining to dividing
                 # surface and sampling from Andersen thermostat
                 logging.info('Evolving parent trajectory to {0:g} ps...'.format((parentIter+1) * childSamplingSteps * self.dt * 2.418884326505e-5))
