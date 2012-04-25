@@ -771,7 +771,7 @@ class RPMD:
         
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        recrossingFilename = os.path.join(workingDirectory, 'recrossing_factor.dat')
+        recrossingFilename = os.path.join(workingDirectory, 'recrossing_factor_{0:g}.dat'.format(self.xi_current))
 
         # Look for existing output file for this calculation
         # If a file exists, we won't repeat the calculation unless more
@@ -1357,7 +1357,7 @@ class RPMD:
         
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        rateFilename = os.path.join(workingDirectory, 'rate_coefficient_{0:d}.dat'.format(self.Nbeads))
+        rateFilename = os.path.join(workingDirectory, 'rate_coefficient_{0:g}.dat'.format(self.xi_current))
 
         # Compute the rate coefficient using the reactant dividing surface
         Rinf = self.reactants.Rinf
