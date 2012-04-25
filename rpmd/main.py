@@ -450,15 +450,12 @@ class RPMD:
         
         self.saveUmbrellaConfigurations(configurationsFilename, evolutionSteps)
     
-    def computePotentialOfMeanForce(self, 
-                                    dt, 
-                                    windows,
-                                    xi_min, 
-                                    xi_max, 
-                                    bins,
-                                    thermostat,
-                                    processes=1,
-                                    saveTrajectories=False):
+    def conductUmbrellaSampling(self, 
+                                dt, 
+                                windows,
+                                thermostat,
+                                processes=1,
+                                saveTrajectories=False):
         """
         Return the value of the static factor :math:`p^{(n)}(s_1, s_0)` as
         computed using umbrella integration.
@@ -487,9 +484,9 @@ class RPMD:
             pool = None
         results = []
 
-        logging.info('****************************')
-        logging.info('RPMD potential of mean force')
-        logging.info('****************************')
+        logging.info('**********************')
+        logging.info('RPMD umbrella sampling')
+        logging.info('**********************')
         logging.info('')
         
         logging.info('Parameters')
@@ -498,9 +495,6 @@ class RPMD:
         logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Number of umbrella integration windows  = {0:d}'.format(Nwindows))
-        logging.info('Lower bound of reaction coordinate      = {0:g}'.format(xi_min))
-        logging.info('Upper bound of reaction coordinate      = {0:g}'.format(xi_max))
-        logging.info('Number of bins                          = {0:d}'.format(bins))
         logging.info('')
 
         # Set up output files and directory
@@ -619,12 +613,9 @@ class RPMD:
                 
                 count += 1
                         
-        # Calculate the final potential of mean force
-        self.calculatePotentialOfMeanForce(xi_min, xi_max, bins)
-        
         logging.info('')
         
-    def calculatePotentialOfMeanForce(self, xi_min, xi_max, bins):
+    def computePotentialOfMeanForce(self, windows, xi_min, xi_max, bins):
         """
         Compute the potential of mean force of the system at the given
         temperature by integrating over the given reaction coordinate range
@@ -635,10 +626,24 @@ class RPMD:
         workingDirectory = self.createWorkingDirectory()
         potentialFilename = os.path.join(workingDirectory, 'potential_of_mean_force.dat')
 
+        self.umbrellaWindows = windows
         Nwindows = len(self.umbrellaWindows)
         
         xi_list = numpy.linspace(xi_min, xi_max, bins, True)
         
+        logging.info('****************************')
+        logging.info('RPMD potential of mean force')
+        logging.info('****************************')
+        logging.info('')
+        
+        logging.info('Parameters')
+        logging.info('==========')
+        logging.info('Number of umbrella integration windows  = {0:d}'.format(Nwindows))
+        logging.info('Lower bound of reaction coordinate      = {0:g}'.format(xi_min))
+        logging.info('Upper bound of reaction coordinate      = {0:g}'.format(xi_max))
+        logging.info('Number of bins                          = {0:d}'.format(bins))
+        logging.info('')
+
         # Count the number of sampling points in each window
         N = numpy.zeros(Nwindows)
         for l in range(Nwindows):
