@@ -24,6 +24,10 @@ python module _main ! in
             double precision, optional :: pi=dacos(-1.0d0)
             integer :: thermostat
             double precision :: andersen_sampling_time
+            integer, parameter,optional :: max_gle_ns=20
+            integer :: gle_ns
+            double precision :: gle_a(max_gle_ns+1,max_gle_ns+1)
+            double precision :: gle_c(max_gle_ns+1,max_gle_ns+1)
             subroutine equilibrate(t,p,q,natoms,nbeads,steps,xi_current,potential,kforce,constrain,save_trajectory,result) ! in :_main:rpmd/_main.f90:system
                 use _main__user__routines
                 double precision intent(inout) :: t
