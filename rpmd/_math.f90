@@ -161,3 +161,86 @@ subroutine irfft(x,N)
     x = factor * copy(1:N)
 
 end subroutine irfft
+
+! Return the expoential of a (square) matrix using the scale and square
+! algorithm.
+! Parameters:
+!   M - The square matrix to exponentiate
+!   n - The size of the matrix
+!   j - The number of terms in the exponential to evaluate
+!   k - The exponent of the power of two used to scale the matrix
+! Returns:
+!   EM - The expoential of the given matrix
+subroutine matrix_exp(M, n, j, k, EM)
+    integer, intent(in)  :: n, j, k
+    real*8, intent(in)   :: M(n,n)
+    real*8, intent(out)   :: EM(n,n)
+
+    real *8 :: tc(j+1), SM(n,n)
+    integer p, i
+    tc(1)=1
+    do i=1,j
+       tc(i+1)=tc(i)/dble(i)
+    enddo
+
+    !scale
+    SM=M*(1./2.**k)
+    EM=0.
+    do i=1,n
+       EM(i,i)=tc(j+1)
+    enddo
+
+    !taylor exp of scaled matrix
+    do p=j,1,-1
+       EM=matmul(SM,EM);
+       do i=1,n
+          EM(i,i)=EM(i,i)+tc(p)
+       enddo
+    enddo
+
+    !square
+    do p=1,k
+       EM=matmul(EM,EM)
+    enddo
+
+end subroutine matrix_exp
+
+! Compute the brute-force stabilized Cholesky decomposition of a square matrix.
+! Parameters:
+!   SST - The matrix to determine the Cholesky decomposition of
+!   n - The size of the matrix
+! Returns:
+!   S - The computed Cholesky decomposition
+subroutine cholesky(SST, S, n)
+
+    integer, intent(in)  :: n
+    real*8, intent(in)   :: SST(n,n)
+    real*8, intent(out)   :: S(n,n)
+    real*8 :: D(n), L(n,n)
+    
+    integer i,j,k
+    
+    D = 0.d0
+    L = 0.d0
+    do i = 1,n
+        L(i,i)=1.
+        D(i)=SST(i,i)
+        do j=1,i-1
+            L(i,j)=SST(i,j);
+            do k=1,j-1
+                L(i,j)=L(i,j)-L(i,k)*L(j,k)*D(k)
+            end do
+            if (D(j).ne.0.) L(i,j)=L(i,j)/D(j)
+        end do
+        do k=1,i-1
+            D(i)=D(i)-L(i,k)*L(i,k)*D(k)
+        end do
+    end do
+    S=0.
+    do i=1,n
+        do j=1,i
+            if (D(j)>0.) S(i,j)=S(i,j)+L(i,j)*sqrt(D(j))
+        end do
+    end do
+
+end subroutine cholesky
