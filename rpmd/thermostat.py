@@ -33,6 +33,9 @@
 This module contains representations of various thermostats available in RPMD.
 """
 
+import os.path
+import numpy
+
 import rpmd.quantity as quantity
 
 ################################################################################
@@ -58,3 +61,82 @@ class AndersenThermostat:
         """
         module.thermostat = 1
         module.andersen_sampling_time = self.samplingTime
+
+################################################################################
+
+class GLEThermostat(object):
+    """
+    A representation of a colored-noise, generalized Langevin equation
+    thermostat. The GLE thermostat offers significantly faster convergence
+    when compared to the simpler Andersen thermostat, but requires more effort
+    to set up. In particular, the thermostat requires two matrices be specified
+    as input; these can be generated at 
+    
+        http://gle4md.berlios.de/compose.php?page=matrix
+    
+    and supplied either as a file on disk or as numpy arrays. The A and C
+    matrices are assumed to have units of s^-1 and K, respectively.
+    """
+    
+    def __init__(self, A=None, C=None):
+        self.A = A
+        self.C = C
+
+    @property
+    def A(self):
+        return self._A
+    @A.setter
+    def A(self, value):
+        if isinstance(value, str) and os.path.exists(value):
+            # value is the path of a file on disk to load from
+            _A = []
+            f = open(value, 'r')
+            for line in f:
+                # Remove comment
+                if '#' in line: line = line[0:line.index('#')].strip()
+                tokens = line.split()
+                if len(tokens) > 0:
+                    _A.append([float(t) for t in tokens])
+            f.close()
+            self._A = numpy.array(_A)
+        elif isinstance(value, numpy.ndarray):
+            self._A = value
+        elif value is None:
+            self._A = None
+        else:
+            raise ValueError('Unexpected value {0!r} for A attribute.'.format(value))
+        
+    @property
+    def C(self):
+        return self._C
+    @C.setter
+    def C(self, value):
+        if isinstance(value, str) and os.path.exists(value):
+            # value is the path of a file on disk to load from
+            _C = []
+            f = open(value, 'r')
+            for line in f:
+                # Remove comment
+                if '#' in line: line = line[0:line.index('#')].strip()
+                tokens = line.split()
+                if len(tokens) > 0:
+                    _C.append([float(t) for t in tokens])
+            f.close()
+            self._C = numpy.array(_C)
+        elif isinstance(value, numpy.ndarray):
+            self._C = value
+        elif value is None:
+            self._C = None
+        else:
+            raise ValueError('Unexpected value {0!r} for C attribute.'.format(value))
+
+    def activate(self, module):
+        """
+        Set the thermostat as active in the Fortran layer of the given
+        `module`.
+        """
+        Ns = self._A.shape[0] - 1
+        module.thermostat = 2
+        module.gle_ns = Ns
+        module.gle_a[0:Ns+1,0:Ns+1] = self._A * 2.418884326505e-17  # s^-1 to atomic units of inverse time
+        module.gle_c[0:Ns+1,0:Ns+1] = self._C * constants.kB / 4.35974417e-18  # K to atomic units of energy
