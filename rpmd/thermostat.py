@@ -36,6 +36,7 @@ This module contains representations of various thermostats available in RPMD.
 import os.path
 import numpy
 
+import rpmd.constants as constants
 import rpmd.quantity as quantity
 
 ################################################################################
@@ -54,7 +55,7 @@ class AndersenThermostat:
         else:
             self.samplingTime = 0.0
 
-    def activate(self, module):
+    def activate(self, module, Natoms, Nbeads):
         """
         Set the thermostat as active in the Fortran layer of the given
         `module`.
@@ -130,7 +131,7 @@ class GLEThermostat(object):
         else:
             raise ValueError('Unexpected value {0!r} for C attribute.'.format(value))
 
-    def activate(self, module):
+    def activate(self, module, Natoms, Nbeads):
         """
         Set the thermostat as active in the Fortran layer of the given
         `module`.
@@ -139,4 +140,9 @@ class GLEThermostat(object):
         module.thermostat = 2
         module.gle_ns = Ns
         module.gle_a[0:Ns+1,0:Ns+1] = self._A * 2.418884326505e-17  # s^-1 to atomic units of inverse time
-        module.gle_c[0:Ns+1,0:Ns+1] = self._C * constants.kB / 4.35974417e-18  # K to atomic units of energy
+        if self._C is None:
+            module.gle_c[0:Ns+1,0:Ns+1] = numpy.zeros((Ns+1,Ns+1))
+            for s in range(Ns+1):
+                module.gle_c[s,s] = Nbeads / module.beta
+        else:
+            module.gle_c[0:Ns+1,0:Ns+1] = self._C * constants.kB / 4.35974417e-18  # K to atomic units of energy
