@@ -929,7 +929,7 @@ class RPMD:
         f.write('****************************\n\n')
 
         f.write('Temperature                             = {0:g} K\n'.format(self.T))
-        f.write('Number of beads                         = {0:d}\n'.format(self.Nbeads))
+        f.write('Number of beads                         = 1\n')
         f.write('Time step                               = {0:g} ps\n'.format(self.dt * 2.418884326505e-5))
         f.write('Number of umbrella integration windows  = {0:d}\n'.format(len(self.umbrellaConfigurations)))
         f.write('Trajectory evolution time               = {0:g} ps ({1:d} steps)\n\n'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
