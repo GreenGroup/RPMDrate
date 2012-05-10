@@ -278,19 +278,20 @@ class RPMD:
         # Add handlers to logger
         logger.addHandler(ch)
 
-    def activate(self):
+    def activate(self, Nbeads=None):
         """
         Set this object as the active RPMD system in the Fortran layer. Note
         that the dividing surface properties must be set in the corresponding
         modules in ``rpmd._main``, *not* in ``rpmd._surface``.
         """
         Natoms = self.mass.shape[0]
+        Nbeads = self.Nbeads if Nbeads is None else Nbeads
         system.dt = self.dt
         system.beta = self.beta
         system.mass[0:Natoms] = self.mass
         system.mode = self.mode
         self.reactants.activate(module=reactants)
-        self.thermostat.activate(module=system)
+        self.thermostat.activate(module=system, Natoms=Natoms, Nbeads=Nbeads)
         
         Nts = len(self.transitionStates)
         Nforming_bonds = max([ts.formingBonds.shape[0] for ts in self.transitionStates])
@@ -391,7 +392,7 @@ class RPMD:
 
         # Only use one bead to generate initial positions in each window
         # (We will equilibrate within each window to allow the beads to separate)
-        self.activate()
+        self.activate(Nbeads)
 
         # Seed the random number generator
         random_init()

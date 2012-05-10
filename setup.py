@@ -71,7 +71,7 @@ class test(Command):
 # The Fortran extension modules to build using f2py
 ext_modules = [
     Extension('rpmd._surface', ['rpmd/_surface.f90']),
-    Extension('rpmd._main', ['rpmd/_main.pyf', 'rpmd/_math.f90', 'rpmd/_surface.f90', 'rpmd/_main.f90'], libraries=['fftw3']),
+    Extension('rpmd._main', ['rpmd/_main.pyf', 'rpmd/_math.f90', 'rpmd/_surface.f90', 'rpmd/_main.f90'], libraries=['blas', 'fftw3']),
 ]
 
 setup(

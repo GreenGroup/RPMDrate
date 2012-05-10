@@ -37,11 +37,19 @@ module system
     integer :: mode
     double precision :: pi = dacos(-1.0d0)
     
-    ! The type of thermostat (1 = Andersen)
+    ! The type of thermostat (1 = Andersen, 2 = GLE)
     integer :: thermostat
     
     ! Parameters for the Andersen thermostat
     double precision :: andersen_sampling_time
+    
+    ! Parameters for the GLE thermostat
+    integer, parameter :: MAX_GLE_NS = 20
+    integer :: gle_Ns
+    double precision :: gle_A(MAX_GLE_NS+1,MAX_GLE_NS+1)
+    double precision :: gle_C(MAX_GLE_NS+1,MAX_GLE_NS+1)
+    double precision, allocatable, save :: gle_S(:,:), gle_T(:,:)
+    double precision, allocatable, save :: gle_p(:,:,:,:), gle_np(:,:,:,:)
 
 contains
 
@@ -91,6 +99,10 @@ contains
                 andersen_sampling_steps = int(dsqrt(dble(steps)))
             end if
         end if
+        ! Set up GLE thermostat (if turned on)
+        if (thermostat .eq. 2) then
+            call gle_initialize(dt, Natoms, Nbeads, gle_A(1:gle_Ns+1,1:gle_Ns+1), gle_C(1:gle_Ns+1,1:gle_Ns+1), gle_Ns)
+        end if
 
         if (save_trajectory .eq. 1) then
             open(unit=77,file='equilibrate.xyz')
@@ -110,6 +122,12 @@ contains
             call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
         end if
 
+        ! Apply GLE thermostat if turned on
+        if (thermostat .eq. 2) then
+            call gle_thermostat(p, mass, beta, dxi, Natoms, Nbeads, gle_Ns, constrain, result)
+            if (result .ne. 0) return
+        end if
+
         do step = 1, steps
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
                 xi_current, potential, kforce, constrain, result)
@@ -120,8 +138,18 @@ contains
             if (thermostat .eq. 1) then
                 if (mod(step, andersen_sampling_steps) .eq. 0) call sample_momentum(p, mass, beta, Natoms, Nbeads)
             end if
+            ! Apply GLE thermostat if turned on
+            if (thermostat .eq. 2) then
+                call gle_thermostat(p, mass, beta, dxi, Natoms, Nbeads, gle_Ns, constrain, result)
+                if (result .ne. 0) return
+            end if
 
         end do
+
+        ! Clean up GLE thermostat (if turned on)
+        if (thermostat .eq. 2) then
+            call gle_cleanup()
+        end if
 
         if (save_trajectory .eq. 1) then
             close(unit=77)
@@ -235,6 +263,10 @@ contains
                 andersen_sampling_steps = floor(dsqrt(dble(steps)))
             end if
         end if
+        ! Set up GLE thermostat (if turned on)
+        if (thermostat .eq. 2) then
+            call gle_initialize(dt, Natoms, Nbeads, gle_A(1:gle_Ns+1,1:gle_Ns+1), gle_C(1:gle_Ns+1,1:gle_Ns+1), gle_Ns)
+        end if
 
         if (save_trajectory .eq. 1) then
             open(unit=777,file='child.xyz')
@@ -252,7 +284,14 @@ contains
         call add_umbrella_potential(xi, dxi, V, dVdq, Natoms, Nbeads, xi_current, kforce)
         call add_bias_potential(dxi, d2xi, V, dVdq, Natoms, Nbeads)
 
+        ! Apply GLE thermostat if turned on
+        if (thermostat .eq. 2) then
+            call gle_thermostat(p, mass, beta, dxi, Natoms, Nbeads, gle_Ns, 0, result)
+            if (result .ne. 0) return
+        end if
+
         do step = 1, steps
+
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
                 xi_current, potential, kforce, 0, result)
             if (result .ne. 0) then
@@ -269,8 +308,18 @@ contains
             if (thermostat .eq. 1) then
                 if (mod(step, andersen_sampling_steps) .eq. 0) call sample_momentum(p, mass, beta, Natoms, Nbeads)
             end if
+            ! Apply GLE thermostat if turned on
+            if (thermostat .eq. 2) then
+                call gle_thermostat(p, mass, beta, dxi, Natoms, Nbeads, gle_Ns, 0, result)
+                if (result .ne. 0) return
+            end if
 
         end do
+
+        ! Clean up GLE thermostat (if turned on)
+        if (thermostat .eq. 2) then
+            call gle_cleanup()
+        end if
 
         if (save_trajectory .eq. 1) then
             close(unit=777)
@@ -1030,5 +1079,116 @@ contains
         end do
 
     end subroutine
+
+        ! Initialize the GLE thermostat by allocating and populating several
+    ! temporary arrays.
+    subroutine gle_initialize(dt, Natoms, Nbeads, A, C, Ns)
+
+        integer, intent(in) :: Natoms, Nbeads, Ns
+        double precision, intent(in) :: dt, A(Ns+1,Ns+1), C(Ns+1,Ns+1)
+
+        double precision :: gr(Ns+1), C1(Ns+1,Ns+1)
+        integer :: i, j, k, s
+
+        ! Allocate arrays
+        allocate(gle_S(Ns+1,Ns+1))
+        allocate(gle_T(Ns+1,Ns+1))
+        allocate(gle_p(3,Natoms,Nbeads,Ns+1))
+        allocate(gle_np(3,Natoms,Nbeads,Ns+1))
+
+        ! Determine the deterministic part of the propagator
+        call matrix_exp(-dt*A, Ns+1, 15, 15, gle_T)
+
+        ! Determine the stochastic part of the propagator
+        call cholesky(C - matmul(gle_T, matmul(C, transpose(gle_T))), gle_S, Ns+1)
+
+        ! Initialize the auxiliary noise vectors
+        ! To stay general, we use the Cholesky decomposition of C; this allows
+        ! for use of non-diagonal C to break detailed balance
+        ! We also use an extra slot for the physical momentum, as we could then
+        ! use it to initialize the momentum in the calling code
+        call cholesky(C, C1, Ns+1)
+        do i = 1, 3
+            do j = 1, Natoms
+                do k = 1, Nbeads
+                    do s = 1, Ns+1
+                        call randomn(gr(s))
+                    end do
+                    gle_p(i,j,k,:) = matmul(C1, gr)
+                end do
+            end do
+        end do
+
+    end subroutine gle_initialize
+
+    ! Apply the GLE thermostat to the momentum.
+    subroutine gle_thermostat(p, mass, beta, dxi, Natoms, Nbeads, Ns, constrain, result)
+
+        implicit none
+        integer, intent(in) :: Natoms, Nbeads, Ns
+        double precision, intent(in) :: mass(Natoms), beta, dxi(3,Natoms)
+        double precision, intent(inout) :: p(3,Natoms,Nbeads)
+        integer, intent(in) :: constrain
+        integer, intent(inout) :: result
+
+        double precision :: p0(3,Natoms,Nbeads), p00(3,Natoms,Nbeads), cgj
+        integer :: i, j, k, s
+        integer :: N, nmrep
+
+        nmrep = 0
+
+        N = 3 * Natoms * Nbeads
+
+        if (constrain .eq. 1) then
+            call sample_momentum(p0, mass, beta, Natoms, Nbeads)
+            p00(:,:,:) = p0(:,:,:)
+            call constrain_momentum_to_dividing_surface(p00, dxi, Natoms, Nbeads)
+            p = p + p0 - p00
+        end if
+
+        ! Switch to mass-scaled coordinates when storing momenta in gle_p
+        do j = 1, Natoms
+            gle_p(:,j,:,1) = p(:,j,:) / dsqrt(mass(j))
+        end do
+
+        ! We pretend that gp is a (3*Natoms*Nbeads)x(Ns+1) matrix, which should be fine...
+        call dgemm('N','T', N, Ns+1, Ns+1, 1.0d0, gle_p, N, gle_T, Ns+1, 0.0d0, gle_np, N)
+
+        ! Compute the random part
+        do s = 1, Ns+1
+            do i = 1, 3
+                do k = 1, Nbeads
+                    cgj = 1.0d0     ! This is to make it work when applied in NM representation
+                    if (nmrep .gt. 0 .and. k .ne. 1 .and. (mod(Nbeads,2) .ne. 0 .or. k .ne. (Nbeads/2+1))) then
+                        cgj = dsqrt(0.5d0)
+                    end if
+                    do j = 1, Natoms
+                        call randomn(gle_p(i,j,k,s))
+                        gle_p(i,j,k,s) = gle_p(i,j,k,s) * cgj
+                    end do
+                end do
+            end do
+        end do
+
+        ! Again we pretend that gp is a (3*Natoms*Nbeads)x(Ns+1) matrix, which should be fine...
+        call dgemm('N','T', N, Ns+1, Ns+1, 1.0d0, gle_p, N, gle_S, Ns+1, 1.0d0, gle_np, N)
+        gle_p = gle_np
+
+        ! Switch back from mass-scaled coordinates when recovering momenta from gle_p
+        do j = 1, Natoms
+            p(:,j,:) = gle_p(:,j,:,1) * dsqrt(mass(j))
+        end do
+
+        ! If desired, constrain the momentum to the dividing surface
+        if (constrain .eq. 1) call constrain_momentum_to_dividing_surface(p, dxi, Natoms, Nbeads)
+
+    end subroutine gle_thermostat
+
+    ! Clean up the GLE thermostat by deallocating temporary arrays.
+    subroutine gle_cleanup()
+
+        deallocate(gle_S, gle_T, gle_p, gle_np)
+
+    end subroutine gle_cleanup
 
 end module system
