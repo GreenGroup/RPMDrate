@@ -1342,8 +1342,10 @@ class RPMD:
         Compute the value of the RPMD rate coefficient.
         """
         
-        if self.potentialOfMeanForce is None or self.recrossingFactor is None:
-            raise RPMDError('You must run computePotentialOfMeanForce() and computeRecrossingFactor() before running computeRPMDRateCoefficient().')
+        if self.potentialOfMeanForce is None:
+            raise RPMDError('You must run computePotentialOfMeanForce() before running computeRateCoefficient().')
+        if self.recrossingFactor is None:
+            logging.warning('computeRecrossingFactor() not before running computeRateCoefficient(); recrossing factor assumed to be unity.')
         
         logging.info('*********************')
         logging.info('RPMD rate coefficient')
@@ -1379,13 +1381,17 @@ class RPMD:
         k_QTST = k_QTST_s0 * staticFactor
         
         # Correct the rate coefficient for recrossings
-        k_RPMD = k_QTST * float(self.recrossingFactor)
+        if self.recrossingFactor is None:
+            recrossingFactor = 1.0
+        else:
+            recrossingFactor = float(self.recrossingFactor)
+        k_RPMD = k_QTST * recrossingFactor
                 
         fromAtomicUnits = 1e6 * ((5.2917721092e-11)**3 / 2.418884326505e-17) * constants.Na
         logging.info('Final value of rate coefficient = {0:g} cm^3/(mol*s)'.format(k_RPMD * fromAtomicUnits))
         logging.info('')
 
-        self.saveRateCoefficient(rateFilename, k_QTST_s0, staticFactor, k_QTST, self.recrossingFactor, k_RPMD)
+        self.saveRateCoefficient(rateFilename, k_QTST_s0, staticFactor, k_QTST, recrossingFactor, k_RPMD)
 
         return k_RPMD
     
