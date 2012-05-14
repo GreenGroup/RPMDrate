@@ -344,6 +344,89 @@ contains
 
     end subroutine evaluate
 
+    ! Check that a given position is valid by ensuring that all breaking and
+    ! forming bonds have lengths less than Rmax.
+    ! Parameters:
+    !   position - A 3 x Natoms array of atomic positions
+    !   Natoms - The number of atoms
+    !   Rmax - The maximum valid bond length in atomic units for breaking/forming bonds
+    ! Returns:
+    !   result - 0 if the position is valid, 1 if invalid
+    subroutine check_for_valid_position(position, Natoms, Rmax, result)
+
+        implicit none
+        integer, intent(in) :: Natoms
+        double precision, intent(in) :: position(3,Natoms)
+        double precision, intent(in) :: Rmax
+        integer, intent(inout) :: result
+
+        double precision :: values(number_of_transition_states)
+        integer :: m, n, atom1, atom2
+        double precision :: Rx, Ry, Rz, R
+
+        call evaluate_all(position, Natoms, values)
+
+        n = maxloc(values, 1)
+
+        do m = 1, number_of_forming_bonds
+            atom1 = forming_bonds(n,m,1)
+            atom2 = forming_bonds(n,m,2)
+            Rx = position(1,atom1) - position(1,atom2)
+            Ry = position(2,atom1) - position(2,atom2)
+            Rz = position(3,atom1) - position(3,atom2)
+            R = sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
+            if (R .gt. Rmax) then
+                result = 1
+                return
+            end if
+        end do
+
+        do m = 1, number_of_breaking_bonds
+            atom1 = breaking_bonds(n,m,1)
+            atom2 = breaking_bonds(n,m,2)
+            Rx = position(1,atom1) - position(1,atom2)
+            Ry = position(2,atom1) - position(2,atom2)
+            Rz = position(3,atom1) - position(3,atom2)
+            R = sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
+            if (R .gt. Rmax) then
+                result = 1
+                return
+            end if
+        end do
+
+    end subroutine
+
+    ! Check that the transition state dividing surface does not give the
+    ! same value for equivalent transition states at a given position.
+    ! Parameters:
+    !   position - A 3 x Natoms array of atomic positions
+    !   Natoms - The number of atoms
+    ! Returns:
+    !   result - 0 if the position is valid, 1 if invalid
+    subroutine check_values(position, Natoms, result)
+
+        implicit none
+        integer, intent(in) :: Natoms
+        double precision, intent(in) :: position(3,Natoms)
+        integer, intent(inout) :: result
+
+        double precision :: values(number_of_transition_states), max_value
+        integer :: n, Neq
+
+        call evaluate_all(position, Natoms, values)
+
+        n = maxloc(values, 1)
+        max_value = values(n)
+
+        Neq = 0
+        do n = 1, number_of_transition_states
+            if (abs(values(n) - max_value) < 1.0e-10) Neq = Neq + 1
+        end do
+
+        if (Neq .ne. 1) result = 1
+
+    end subroutine
+
 end module transition_state
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

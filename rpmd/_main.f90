@@ -73,8 +73,9 @@ contains
     subroutine equilibrate(t, p, q, Natoms, Nbeads, steps, &
         xi_current, potential, kforce, constrain, save_trajectory, result)
 
-        implicit none
+        use transition_state, only: check_for_valid_position
 
+        implicit none
         external potential
         integer, intent(in) :: Natoms, Nbeads
         double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
@@ -132,6 +133,19 @@ contains
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
                 xi_current, potential, kforce, constrain, result)
             if (result .ne. 0) exit
+
+            ! If constraining to dividing surface, check that the values of
+            ! the forming and breaking bonds are reasonable
+            if (constrain .eq. 1) then
+                call get_centroid(q, Natoms, Nbeads, centroid)
+                call check_for_valid_position(centroid, Natoms, 20.0d0, result)
+                if (result .ne. 0) then
+                    write (*,fmt='(A)') &
+                        'Error: Invalid geometry for recrossing factor parent trajectory. Restarting trajectory.'
+                    exit
+                end if
+            end if
+
             if (save_trajectory .eq. 1) call update_vmd_output(q, Natoms, Nbeads, 77, 88)
 
             ! Apply Andersen thermostat (if turned on)
@@ -232,8 +246,9 @@ contains
         xi_current, potential, kforce, save_trajectory, av, av2, &
         actual_steps, result)
 
-        implicit none
+        use transition_state, only: check_for_valid_position, check_values
 
+        implicit none
         external potential
         integer, intent(in) :: Natoms, Nbeads
         double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
@@ -298,7 +313,18 @@ contains
                 actual_steps = step - 1
                 exit
             end if
-            if (result .ne. 0) exit
+
+            ! Check that the values of the forming and breaking bonds are reasonable
+            call get_centroid(q, Natoms, Nbeads, centroid)
+            call check_for_valid_position(centroid, Natoms, 200.0d0, result)
+            call check_values(centroid, Natoms, result)
+            if (result .ne. 0) then
+                write (*,fmt='(A)') &
+                    'Error: Invalid geometry for umbrella sampling trajectory. Restarting trajectory.'
+                actual_steps = step - 1
+                exit
+            end if
+
             if (save_trajectory .eq. 1) call update_vmd_output(q, Natoms, Nbeads, 777, 888)
 
             av = av + xi
