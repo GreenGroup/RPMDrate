@@ -1338,7 +1338,7 @@ class RPMD:
         import scipy.interpolate
         f = scipy.interpolate.InterpolatedUnivariateSpline(self.potentialOfMeanForce[0,:], self.potentialOfMeanForce[1,:])
         W1 = f(self.xi_current)
-        W0 = self.potentialOfMeanForce[1,0]
+        W0 = f(0.0)
         staticFactor = float(numpy.exp(-self.beta * (W1 - W0)))
         
         # Correct the rate coefficient to the transition state dividing surface
