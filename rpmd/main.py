@@ -162,7 +162,7 @@ class RPMD:
     
     """
 
-    def __init__(self, label, T, Nbeads, reactants, transitionState, potential, outputDirectory='.'):
+    def __init__(self, label, T, Nbeads, reactants, transitionState, potential, thermostat, outputDirectory='.'):
         """
         Initialize an RPMD object. The `mass` of each atom should be given in
         g/mol, while the `Rinf` value should be given in angstroms. (They will
@@ -176,6 +176,7 @@ class RPMD:
         self.reactants = reactants
         self.transitionStates = [transitionState]
         self.potential = potential
+        self.thermostat = thermostat
         self.outputDirectory = os.path.abspath(outputDirectory)
         
         self.beta = 4.35974417e-18 / (constants.kB * self.T)
@@ -320,8 +321,7 @@ class RPMD:
                                        dt, 
                                        evolutionTime,
                                        xi_list,
-                                       kforce,
-                                       thermostat):
+                                       kforce):
         """
         Generate a set of configurations along the reaction coordinate for
         future use in RPMD umbrella sampling. The algorithm starts near the
@@ -340,7 +340,7 @@ class RPMD:
         xi_list = numpy.array(xi_list)
         Nxi = len(xi_list)
         geometry = self.transitionStates[0].geometry
-        self.thermostat = thermostat
+        thermostat = self.thermostat
         self.mode = 1
         
         if isinstance(kforce, float):
@@ -454,7 +454,6 @@ class RPMD:
     def conductUmbrellaSampling(self, 
                                 dt, 
                                 windows,
-                                thermostat,
                                 processes=1,
                                 saveTrajectories=False):
         """
@@ -469,7 +468,7 @@ class RPMD:
         # Set the parameters for the RPMD calculation
         self.dt = dt = float(quantity.convertTime(dt, "ps")) / 2.418884326505e-5
         Nwindows = len(windows)
-        self.thermostat = thermostat
+        thermostat = self.thermostat
         self.mode = 1
         
         # Create a pool of subprocesses to farm out the individual trajectories to
@@ -682,7 +681,6 @@ class RPMD:
                                 childrenPerSampling,
                                 childEvolutionTime,
                                 childSamplingTime,
-                                thermostat,
                                 processes=1,
                                 xi_current=None,
                                 saveParentTrajectory=False, 
@@ -731,7 +729,7 @@ class RPMD:
         self.kforce = 0.0
         geometry = self.transitionStates[0].geometry
         self.xi_current = xi_current
-        self.thermostat = thermostat
+        thermostat = self.thermostat
         self.mode = 2
         
         # Initialize parameters used to compute recrossing factor
