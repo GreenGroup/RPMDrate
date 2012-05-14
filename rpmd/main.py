@@ -169,7 +169,7 @@ class RPMD:
         be converted to atomic units.)
         """
         self.label = label
-        self.T = float(quantity.convertTemperature(T, "K"))
+        self.T = T
         self.Nbeads = Nbeads
         self.mass = reactants.mass
         self.Natoms = len(self.mass)
@@ -188,8 +188,6 @@ class RPMD:
         self.umbrellaWindows = None
         self.potentialOfMeanForce = None
         self.recrossingFactor = None
-        
-        self.initializeLog()
     
     def addEquivalentTransitionState(self, formingBonds, breakingBonds):
         """
@@ -247,38 +245,6 @@ class RPMD:
             breakingBonds = breakingBonds,
         ))
     
-    def initializeLog(self, verbose=logging.INFO):
-        """
-        Set up a logger for RPMD to use to print output to stdout. The
-        `verbose` parameter is an integer specifying the amount of log text seen
-        at the console; the levels correspond to those of the :data:`logging` module.
-        """
-        # Create logger
-        logger = logging.getLogger()
-        logger.setLevel(verbose)
-    
-        # Create console handler; send everything to stdout rather than stderr
-        ch = logging.StreamHandler(sys.stdout)
-        ch.setLevel(verbose)
-    
-        logging.addLevelName(logging.CRITICAL, 'Critical: ')
-        logging.addLevelName(logging.ERROR, 'Error: ')
-        logging.addLevelName(logging.WARNING, 'Warning: ')
-        logging.addLevelName(logging.INFO, '')
-        logging.addLevelName(logging.DEBUG, '')
-        logging.addLevelName(0, '')
-    
-        # Create formatter and add to handlers
-        formatter = logging.Formatter('%(levelname)s%(message)s')
-        ch.setFormatter(formatter)
-        
-        # Remove old handlers before adding ours
-        while logger.handlers:
-            logger.removeHandler(logger.handlers[0])
-    
-        # Add handlers to logger
-        logger.addHandler(ch)
-
     def activate(self, Nbeads=None):
         """
         Set this object as the active RPMD system in the Fortran layer. Note
@@ -678,11 +644,11 @@ class RPMD:
                                 dt, 
                                 equilibrationTime,
                                 childTrajectories,
+                                childSamplingTime,
                                 childrenPerSampling,
                                 childEvolutionTime,
-                                childSamplingTime,
-                                processes=1,
                                 xi_current=None,
+                                processes=1,
                                 saveParentTrajectory=False, 
                                 saveChildTrajectories=False):
         """
