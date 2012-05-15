@@ -1,6 +1,6 @@
-*****************
-RPMD Theory Guide
-*****************
+*********************
+RPMDrate Theory Guide
+*********************
 
 .. toctree::
     :maxdepth: 2

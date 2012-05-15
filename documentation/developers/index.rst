@@ -1,6 +1,6 @@
-**********************
-RPMD Developer's Guide
-**********************
+**************************
+RPMDrate Developer's Guide
+**************************
 
 .. toctree::
     :maxdepth: 2

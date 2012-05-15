@@ -1,18 +1,18 @@
-**************************************************
-RPMD - Ring polymer molecular dynamics simulations
-**************************************************
+******************************************************
+RPMDrate - Ring polymer molecular dynamics simulations
+******************************************************
 
-About RPMD
-==========
+About RPMDrate
+==============
 
-RPMD is a free, open-source software package for using ring polymer molecular
-dynamics simulations to compute properties of chemical systems, including, but
-not limited to, chemical reaction rates.
+RPMDrate is a free, open-source software package for using ring polymer
+molecular dynamics simulations to compute properties of chemical systems,
+including, but not limited to, chemical reaction rates.
 
 License
 =======
 
-RPMD is distributed under the terms of the 
+RPMDrate is distributed under the terms of the 
 `MIT license <http://www.opensource.org/licenses/mit-license>`_::
 
     Copyright (c) 2012 by Joshua W. Allen (jwallen@mit.edu)
@@ -43,7 +43,7 @@ Installation
 Dependencies
 ------------
 
-RPMD depends on several other packages in order to provide its full
+RPMDrate depends on several other packages in order to provide its full
 functional capabilities. The following dependencies are required to compile
 and run RPMD:
 
@@ -55,16 +55,16 @@ and run RPMD:
 
 * A standard Fortran 90/95 compiler (e.g. ``gfortran``, ``g95``, ``ifort``, etc.)
 
-RPMD uses the ``f2py`` tool (bundled with NumPy) to expose its Fortran code to
-Python.
+RPMDrate uses the ``f2py`` tool (bundled with NumPy) to expose its Fortran code
+to Python.
 
-Getting RPMD
-------------
+Getting RPMDrate
+----------------
 
 The best way to obtain a copy of the repository is to clone it using `git
 <http://git-scm.com/>`_::
 
-    $ git clone git://github.com/GreenGroup/RPMD.git
+    $ git clone git://github.com/GreenGroup/RPMDrate.git
 
 This enables you to easy update your local clone with the latest changes. If
 you intend to contribute, you should fork the project on GitHub first, and
@@ -73,14 +73,14 @@ clone from your fork.
 Compiling from Source
 ---------------------
 
-RPMD is installed by invoking the ``setup.py`` script::
+RPMDrate is installed by invoking the ``setup.py`` script::
 
     $ python setup.py install
 
 This will compile the Fortran source and Python wrapper code, which may take
 some time. Note that you may need administrator privileges to install RPMD.
 
-If you wish to use RPMD without installing, simply add the folder containing
+If you wish to use RPMDrate without installing, simply add the folder containing
 this file to your ``PYTHONPATH`` environment variable and compile the source
 code in-place using the command ::
 
@@ -92,9 +92,9 @@ provides a clean target for deleting all files created during compilation.
 Running the Unit Tests
 ----------------------
 
-RPMD comes with a large suite of unit tests that ensure functionality is
-working as intended. To run these tests, first install RPMD or compile it from
-source in-place using the directions above. Then, simply invoke the entire
+RPMDrate comes with a large suite of unit tests that ensure functionality is
+working as intended. To run these tests, first install RPMDrate or compile it
+from source in-place using the directions above. Then, simply invoke the entire
 suite of unit tests using ::
 
     $ python setup.py test
