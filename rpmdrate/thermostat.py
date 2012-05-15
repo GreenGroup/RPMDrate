@@ -36,8 +36,8 @@ This module contains representations of various thermostats available in RPMD.
 import os.path
 import numpy
 
-import rpmd.constants as constants
-import rpmd.quantity as quantity
+import rpmdrate.constants as constants
+import rpmdrate.quantity as quantity
 
 ################################################################################
 

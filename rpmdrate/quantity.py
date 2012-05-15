@@ -36,7 +36,7 @@ physical quantities.
 
 import numpy
 
-import rpmd.constants as constants
+import rpmdrate.constants as constants
 
 ################################################################################
 

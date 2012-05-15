@@ -165,7 +165,7 @@ if __name__ == '__main__':
     logHeader()
     
     # Load the input file for the job
-    from rpmd.input import loadInputFile
+    from rpmdrate.input import loadInputFile
     system, jobList = loadInputFile(args.file[0], args.T[0], args.Nbeads[0], args.processes[0])
     logging.info('')
     

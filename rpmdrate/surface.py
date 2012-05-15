@@ -37,10 +37,10 @@ RPMD calculation.
 import math
 import numpy
 
-from rpmd._surface import *
-import rpmd.constants as constants
-import rpmd.quantity as quantity
-from rpmd.element import atomicMass
+from rpmdrate._surface import *
+import rpmdrate.constants as constants
+import rpmdrate.quantity as quantity
+from rpmdrate.element import atomicMass
 
 ################################################################################
 

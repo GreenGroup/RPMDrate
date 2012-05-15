@@ -36,11 +36,11 @@ import math
 import numpy
 import logging
 
-import rpmd.constants as constants
-import rpmd.quantity as quantity
+import rpmdrate.constants as constants
+import rpmdrate.quantity as quantity
 
-from rpmd._main import *
-from rpmd.surface import TransitionState
+from rpmdrate._main import *
+from rpmdrate.surface import TransitionState
 
 ################################################################################
 
