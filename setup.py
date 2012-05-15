@@ -3,7 +3,7 @@
 
 ################################################################################
 #
-#   RPMD - Ring polymer molecular dynamics simulations
+#   RPMDrate - Ring polymer molecular dynamics simulations
 #
 #   Copyright (c) 2012 by Joshua W. Allen (jwallen@mit.edu)
 #                         Yury V. Suleimanov (ysuleyma@mit.edu)
@@ -33,7 +33,7 @@ try:
     import numpy
     from numpy.distutils.core import setup, Extension, Command
 except ImportError:
-    print('The numpy package is required to install RPMD.')
+    print('The numpy package is required to install RPMDrate.')
     quit()
 
 ################################################################################
@@ -70,20 +70,20 @@ class test(Command):
 
 # The Fortran extension modules to build using f2py
 ext_modules = [
-    Extension('rpmd._surface', ['rpmd/_surface.f90']),
-    Extension('rpmd._main', ['rpmd/_main.pyf', 'rpmd/_math.f90', 'rpmd/_surface.f90', 'rpmd/_main.f90'], libraries=['blas', 'fftw3']),
+    Extension('rpmdrate._surface', ['rpmdrate/_surface.f90']),
+    Extension('rpmdrate._main', ['rpmdrate/_main.pyf', 'rpmdrate/_math.f90', 'rpmdrate/_surface.f90', 'rpmdrate/_main.f90'], libraries=['blas', 'fftw3']),
 ]
 
 setup(
-    name = 'RPMD',
+    name = 'RPMDrate',
     version = '0.1.0',
     description = 'Ring polymer molecular dynamics simulations',
     author = 'Joshua W. Allen, Yury V. Suleimanov, William H. Green',
     author_email = 'rpmd_dev@mit.edu',
-    url = 'http://github.com/GreenGroup/RPMD',
-    packages = ['rpmd'],
+    url = 'http://github.com/GreenGroup/RPMDrate',
+    packages = ['rpmdrate'],
     cmdclass = {'test': test},
     ext_modules = ext_modules,
     requires = ['numpy (>=1.5.0)'],
-    provides = ['rpmd'],
+    provides = ['rpmdrate'],
 )

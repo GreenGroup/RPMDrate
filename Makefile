@@ -1,6 +1,6 @@
 ################################################################################
 #
-#   RPMD - Ring polymer molecular dynamics simulations
+#   RPMDrate - Ring polymer molecular dynamics simulations
 #
 #   Copyright (c) 2012 by Joshua W. Allen (jwallen@mit.edu)
 #                         Yury V. Suleimanov (ysuleyma@mit.edu)
@@ -42,7 +42,7 @@ test:
 clean:
 	python setup.py clean --build-temp build
 	rm -rf build/
-	find ./rpmd -name *.pyc -exec rm -f '{}' \;
-	find ./rpmd -name *.pyo -exec rm -f '{}' \;
-	find ./rpmd -name *.pyd -exec rm -f '{}' \;
-	find ./rpmd -name *.so -exec rm -f '{}' \;
+	find ./rpmdrate -name *.pyc -exec rm -f '{}' \;
+	find ./rpmdrate -name *.pyo -exec rm -f '{}' \;
+	find ./rpmdrate -name *.pyd -exec rm -f '{}' \;
+	find ./rpmdrate -name *.so -exec rm -f '{}' \;

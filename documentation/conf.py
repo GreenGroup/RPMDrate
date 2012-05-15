@@ -40,7 +40,7 @@ source_suffix = '.rst'
 master_doc = 'contents'
 
 # General information about the project.
-project = u'RPMD'
+project = u'RPMDrate'
 copyright = u'2012, Joshua W. Allen, Yury V. Suleimanov, William H. Green'
 
 # The version info for the project you're documenting, acts as replacement for

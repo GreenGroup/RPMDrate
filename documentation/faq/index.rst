@@ -1,6 +1,6 @@
-*******************************
-RPMD Frequently-Asked Questions
-*******************************
+***********************************
+RPMDrate Frequently-Asked Questions
+***********************************
 
 .. toctree::
     :maxdepth: 2

@@ -3,7 +3,7 @@
 
 ################################################################################
 #
-#   RPMD - Ring polymer molecular dynamics simulations
+#   RPMDrate - Ring polymer molecular dynamics simulations
 #
 #   Copyright (c) 2012 by Joshua W. Allen (jwallen@mit.edu)
 #                         Yury V. Suleimanov (ysuleyma@mit.edu)
@@ -36,7 +36,7 @@ This script contains unit tests of the :mod:`rpmd.constants` module.
 import unittest
 import math
 
-import rpmd.constants as constants
+import rpmdrate.constants as constants
 
 ################################################################################
 

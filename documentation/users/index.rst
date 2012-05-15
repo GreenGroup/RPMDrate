@@ -1,6 +1,6 @@
-*****************
-RPMD User's Guide
-*****************
+*********************
+RPMDrate User's Guide
+*********************
 
 .. toctree::
     :maxdepth: 2
@@ -8,3 +8,7 @@ RPMD User's Guide
     
     introduction
     installation
+    input
+    potential
+    run
+    output

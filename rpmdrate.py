@@ -3,7 +3,7 @@
 
 ################################################################################
 #
-#   RPMD - Ring polymer molecular dynamics simulations
+#   RPMDrate - Ring polymer molecular dynamics simulations
 #
 #   Copyright (c) 2012 by Joshua W. Allen (jwallen@mit.edu)
 #                         Yury V. Suleimanov (ysuleyma@mit.edu)
@@ -165,7 +165,7 @@ if __name__ == '__main__':
     logHeader()
     
     # Load the input file for the job
-    from rpmd.input import loadInputFile
+    from rpmdrate.input import loadInputFile
     system, jobList = loadInputFile(args.file[0], args.T[0], args.Nbeads[0], args.processes[0])
     logging.info('')
     

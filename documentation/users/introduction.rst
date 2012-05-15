@@ -1,9 +1,9 @@
-********************
-Introduction to RPMD
-********************
+************************
+Introduction to RPMDrate
+************************
 
-What is RPMD?
-=============
+What is RPMDrate?
+=================
 
 RPMD is short for *ring polymer molecular dynamics*: a sampling method used to
 compute the approximate values of chemical dynamics properties, such as
@@ -32,7 +32,7 @@ in an extended phase space, which gives the method several desirable features:
 In short, the method captures both the quantum mechanical effects of
 tunneling through a potential barrier and zero-point energy.
   
-RPMD is also the name of this software package, which provides functionality
+RPMDrate is the name of this software package, which provides functionality
 for conducting ring polymer molecular dynamics simulations in order to compute
 the chemical dynamics properties of a wide variety of systems. The RPMD 
 codebase is split into a Fortran 95 core used to efficiently conduct the RPMD
@@ -50,12 +50,12 @@ Features
 License
 =======
 
-RPMD is distributed under the terms of the 
+RPMDrate is distributed under the terms of the 
 `MIT license <http://www.opensource.org/licenses/mit-license>`_. This is a
 permissive license, meaning that you are generally free to use, redistribute,
-and modify RPMD at your discretion. If you use all or part of RPMD in your
-work, we only ask that proper attribution be given (in addition to following
-the terms of the license as stated below).
+and modify RPMDrate at your discretion. If you use all or part of RPMDrate in
+your work, we only ask that proper attribution be given (in addition to
+following the terms of the license as stated below).
 
 The MIT license is reproduced in its entirety below::
 
