@@ -3,7 +3,7 @@
 
 ################################################################################
 #
-#   ChemPy - A chemistry toolkit for Python
+#   RPMDrate - Ring polymer molecular dynamics simulations
 #
 #   Copyright (c) 2012 by Joshua W. Allen (jwallen@mit.edu)
 #
