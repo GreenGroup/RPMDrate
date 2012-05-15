@@ -36,7 +36,7 @@ This script contains unit tests of the :mod:`rpmd.surface` module.
 import unittest
 import numpy
 
-from rpmd.surface import *
+from rpmdrate.surface import *
 
 ################################################################################
 

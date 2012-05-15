@@ -36,7 +36,7 @@ This script contains unit tests of the :mod:`rpmd.constants` module.
 import unittest
 import math
 
-import rpmd.constants as constants
+import rpmdrate.constants as constants
 
 ################################################################################
 

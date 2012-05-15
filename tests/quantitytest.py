@@ -28,14 +28,14 @@
 ################################################################################
 
 """
-This script contains unit tests of the :mod:`chempy.quantity` module.
+This script contains unit tests of the :mod:`rpmdrate.quantity` module.
 """
 
 import unittest
 import math
 import quantities as pq
 
-from rpmd.quantity import *
+from rpmdrate.quantity import *
 
 ################################################################################
 
