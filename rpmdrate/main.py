@@ -840,20 +840,19 @@ class RPMD:
         
         logging.info('Result of recrossing factor calculation:')
         logging.info('')
-        logging.info('=========== =========== ===========')
-        logging.info('Time (fs)   kappa (new) kappa (old)')
-        logging.info('=========== =========== ===========')
+        logging.info('=========== ===========')
+        logging.info('Time (fs)   kappa')
+        logging.info('=========== ===========')
         
         for childStep in range(childEvolutionSteps):
-            logging.info('{0:11.3f} {1:11.6f} {2:11.6f}'.format(
+            logging.info('{0:11.3f} {1:11.6f}'.format(
                 childStep * self.dt * 2.418884326505e-2,
                 kappa_num[childStep] / kappa_denom,
-                kappa_num[childStep] / childCount,
             ))
-        logging.info('=========== =========== ===========')
+        logging.info('=========== ===========')
         logging.info('')
 
-        logging.info('Final value of transmission coefficient = {0:.6f}'.format(kappa_num[-1] / kappa_denom))
+        logging.info('Final value of recrossing factor = {0:.6f}'.format(kappa_num[-1] / kappa_denom))
         logging.info('')
         
         self.recrossingFactor = kappa_num[-1] / kappa_denom
