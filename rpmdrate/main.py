@@ -504,6 +504,8 @@ class RPMD:
                 f.write('=============== =============== =========== =============== ===============\n')
                 f.write('total av        total av2       count       xi_mean         xi_var\n')
                 f.write('=============== =============== =========== =============== ===============\n')
+                f.flush()
+                os.fsync(f.fileno())
                 f.close()
                 
         # This implementation is breadth-first, as we would rather get some
@@ -575,6 +577,8 @@ class RPMD:
                 umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:g}.dat'.format(window.xi))
                 f = open(umbrellaFilename, 'a')
                 f.write('{0:15.8f} {1:15.8f} {2:11d} {3:15.5e} {4:15.5e}\n'.format(window.av, window.av2, window.count, mean, variance))
+                f.flush()
+                os.fsync(f.fileno())
                 f.close()
                 
                 count += 1
@@ -903,6 +907,9 @@ class RPMD:
                 f.write('{0:5} {1:11.6f} {2:11.6f} {3:11.6f}\n'.format(self.reactants.atoms[j], q[0,j], q[1,j], q[2,j]))                
             f.write('\n')
         
+        f.flush()
+        os.fsync(f.fileno())
+
         f.close()
         
     def loadUmbrellaConfigurations(self, path):
@@ -1056,6 +1063,9 @@ class RPMD:
             ))
         f.write('=========== ===============\n')
 
+        f.flush()
+        os.fsync(f.fileno())
+
         f.close()
     
     def loadPotentialOfMeanForce(self, path):
@@ -1147,6 +1157,9 @@ class RPMD:
             ))
         f.write('========= ============= ============= ========= =========== ===========\n')
         
+        f.flush()
+        os.fsync(f.fileno())
+
         f.close()
     
     def loadRecrossingFactor(self, path):
@@ -1249,6 +1262,9 @@ class RPMD:
         f.write('k_RPMD(T)                               = {0:g} cm^3/(molecule*s)\n'.format(k_RPMD * fromAtomicUnits))
         f.write('                                        = {0:g} cm^3/(mol*s)\n\n'.format(k_RPMD * fromAtomicUnits * constants.Na))
         
+        f.flush()
+        os.fsync(f.fileno())
+
         f.close()
 
     def loadRateCoefficient(self, path):
