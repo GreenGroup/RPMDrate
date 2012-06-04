@@ -1334,8 +1334,8 @@ class RPMD:
         
         # Compute the static factor
         # (Use the same xi_current as used in the recrossing factor calculation)
-        import scipy.interpolate
-        f = scipy.interpolate.InterpolatedUnivariateSpline(self.potentialOfMeanForce[0,:], self.potentialOfMeanForce[1,:])
+        from rpmdrate.interpolate import LinearInterpolator
+        f = LinearInterpolator(self.potentialOfMeanForce[0,:], self.potentialOfMeanForce[1,:])
         W1 = f(self.xi_current)
         W0 = f(0.0)
         staticFactor = float(numpy.exp(-self.beta * (W1 - W0)))
