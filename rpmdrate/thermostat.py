@@ -88,10 +88,11 @@ class GLEThermostat(object):
         return self._A
     @A.setter
     def A(self, value):
-        if isinstance(value, str) and os.path.exists(value):
-            # value is the path of a file on disk to load from
+        if isinstance(value, (list,tuple)) and len(value) == 2 and os.path.exists(value[0]):
+            # value is the path of a file on disk to load from and the corresponding units
+            path, units = value
             _A = []
-            f = open(value, 'r')
+            f = open(path, 'r')
             for line in f:
                 # Remove comment
                 if '#' in line: line = line[0:line.index('#')].strip()
@@ -99,7 +100,7 @@ class GLEThermostat(object):
                 if len(tokens) > 0:
                     _A.append([float(t) for t in tokens])
             f.close()
-            self._A = numpy.array(_A)
+            self._A = numpy.array(quantity.convertFrequency((_A,units),'s^-1'))
         elif isinstance(value, numpy.ndarray):
             self._A = value
         elif value is None:
@@ -112,10 +113,11 @@ class GLEThermostat(object):
         return self._C
     @C.setter
     def C(self, value):
-        if isinstance(value, str) and os.path.exists(value):
-            # value is the path of a file on disk to load from
+        if isinstance(value, (list,tuple)) and len(value) == 2 and os.path.exists(value[0]):
+            # value is the path of a file on disk to load from and the corresponding units
+            path, units = value
             _C = []
-            f = open(value, 'r')
+            f = open(path, 'r')
             for line in f:
                 # Remove comment
                 if '#' in line: line = line[0:line.index('#')].strip()
@@ -123,7 +125,7 @@ class GLEThermostat(object):
                 if len(tokens) > 0:
                     _C.append([float(t) for t in tokens])
             f.close()
-            self._C = numpy.array(_C)
+            self._C = numpy.array(quantity.convertTemperature((_C,units),'K'))
         elif isinstance(value, numpy.ndarray):
             self._C = value
         elif value is None:

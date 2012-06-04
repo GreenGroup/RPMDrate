@@ -194,3 +194,43 @@ def convertMass(quantity, units):
         return value0 * MOLAR_MASS_UNITS[units0] / MOLAR_MASS_UNITS[units]
     
     return value0 * LENGTH_UNITS[units0] / LENGTH_UNITS[units]
+
+################################################################################
+
+FREQUENCY_UNITS = {
+    's^-1': 1.0,
+    'ms^-1': 1.0e3,
+    'us^-1': 1.0e6,
+    'ns^-1': 1.0e9,
+    'ps^-1': 1.0e12,
+    'fs^-1': 1.0e15,
+    'Hz': 1.0,
+    'kHz': 1.0e3,
+    'MHz': 1.0e6,
+    'GHz': 1.0e9,
+    'THz': 1.0e12,
+    'J': 1.0 / constants.h,
+    'cm^-1': constants.c * 100.,
+    'eV': constants.e / constants.h,
+}
+
+def convertFrequency(quantity, units):
+    """
+    Convert a given `quantity` with units of frequency to the given `units` 
+    of frequency. A :class:`ValueError` is raised if this conversion is not
+    successful.
+    """
+    if isinstance(quantity, tuple):
+        value0, units0 = quantity
+    else:
+        raise ValueError('Invalid value "{0}" for quantity; must be a tuple (value,units) with units of frequency.'.format(quantity))
+    
+    if isinstance(value0, (list, tuple)):
+        value0 = numpy.array(value0)
+    
+    if units0 not in FREQUENCY_UNITS:
+        raise ValueError('Invalid input units "{0}" for frequency.'.format(units0))
+    if units not in FREQUENCY_UNITS:
+        raise ValueError('Invalid output units "{0}" for frequency.'.format(units))
+    
+    return value0 * FREQUENCY_UNITS[units0] / FREQUENCY_UNITS[units]

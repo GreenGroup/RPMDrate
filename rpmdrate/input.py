@@ -158,13 +158,13 @@ def loadInputFile(path, T, Nbeads, processes=1):
         elif thermostatType.lower() == 'gle':
             A = thermostatArgs.get('A', None)
             C = thermostatArgs.get('C', None)
-            if isinstance(A,str): 
-                A = os.path.join(os.path.dirname(path), A)
-                if not os.path.exists(A):
+            if isinstance(A,(list,tuple)) and len(A) == 2: 
+                A = (os.path.join(os.path.dirname(path), A[0]), A[1])
+                if not os.path.exists(A[0]):
                     errorList.append('Invalid path to A matrix for GLE thermostat.')
-            if isinstance(C,str): 
-                C = os.path.join(os.path.dirname(path), C)
-                if not os.path.exists(C):
+            if isinstance(C,(list,tuple)) and len(C) == 2: 
+                C = (os.path.join(os.path.dirname(path), C[0]), C[1])
+                if not os.path.exists(C[0]):
                     errorList.append('Invalid path to C matrix for GLE thermostat.')
             thermostat = GLEThermostat(A=A, C=C)
             if A is None:
