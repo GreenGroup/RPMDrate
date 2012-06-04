@@ -384,10 +384,10 @@ class RPMD:
             xi_current = xi_list[l]
             
             # Equilibrate in this window
-            logging.info('Generating configuration at xi = {0:g} for {1:g} ps...'.format(xi_current, evolutionSteps * self.dt * 2.418884326505e-5))
+            logging.info('Generating configuration at xi = {0:.4f} for {1:g} ps...'.format(xi_current, evolutionSteps * self.dt * 2.418884326505e-5))
             p = self.sampleMomentum()[:,:,0:Nbeads]
             result = system.equilibrate(0, p, q, evolutionSteps, xi_current, self.potential, kforce[l], False, False)
-            logging.info('Finished generating configuration at xi = {0:g}.'.format(xi_current))
+            logging.info('Finished generating configuration at xi = {0:.4f}.'.format(xi_current))
             q_initial[:,:,l] = q[:,:,0]
                         
         # Now start at xi = 1 and move in the xi < 1 direction, using the
@@ -397,10 +397,10 @@ class RPMD:
             xi_current = xi_list[l]
             
             # Equilibrate in this window
-            logging.info('Generating configuration at xi = {0:g} for {1:g} ps...'.format(xi_current, evolutionSteps * self.dt * 2.418884326505e-5))
+            logging.info('Generating configuration at xi = {0:.4f} for {1:g} ps...'.format(xi_current, evolutionSteps * self.dt * 2.418884326505e-5))
             p = self.sampleMomentum()[:,:,0:Nbeads]
             result = system.equilibrate(0, p, q, evolutionSteps, xi_current, self.potential, kforce[l], False, False)
-            logging.info('Finished generating configuration at xi = {0:g}.'.format(xi_current))
+            logging.info('Finished generating configuration at xi = {0:.4f}.'.format(xi_current))
             q_initial[:,:,l] = q[:,:,0]
         
         # Store the computed configurations on the object for future use in
@@ -410,7 +410,7 @@ class RPMD:
             xi_current = xi_list[l]
             q_current = self.cleanGeometry(q_initial[:,:,l])
             self.umbrellaConfigurations.append((xi_current, q_current))
-            logging.info('Configuration at xi = {0:g}:'.format(xi_current))
+            logging.info('Configuration at xi = {0:.4f}:'.format(xi_current))
             for j in range(self.Natoms):
                 logging.info('{0:5} {1:11.6f} {2:11.6f} {3:11.6f}'.format(self.reactants.atoms[j], q_current[0,j], q_current[1,j], q_current[2,j]))                
             logging.info('')
@@ -473,10 +473,10 @@ class RPMD:
 
         # Load any previous umbrella sampling trajectories for each window
         for window in windows:
-            umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:g}.dat'.format(window.xi))
+            umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:.4f}.dat'.format(window.xi))
             if os.path.exists(umbrellaFilename):
                 # Previous trajectories existed, so load them
-                logging.info('Loading saved output for xi = {0:g} from {1}'.format(window.xi, umbrellaFilename))
+                logging.info('Loading saved output for xi = {0:.4f} from {1}'.format(window.xi, umbrellaFilename))
                 xi, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename)
                 assert abs(xi - window.xi) < 1e-6
                 if len(av_list) > 0:
@@ -496,7 +496,7 @@ class RPMD:
                 f.write('Temperature                             = {0:g} K\n'.format(self.T))
                 f.write('Number of beads                         = {0:d}\n'.format(self.Nbeads))
                 f.write('Time step                               = {0:g} ps\n'.format(self.dt * 2.418884326505e-5))
-                f.write('Reaction coordinate                     = {0:g}\n'.format(window.xi))
+                f.write('Reaction coordinate                     = {0:.4f}\n'.format(window.xi))
                 f.write('Equilibration time                      = {0:g} ps ({1:d} steps)\n'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
                 f.write('Trajectory evolution time               = {0:g} ps ({1:d} steps)\n'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
                 f.write('Force constant                          = {0:g}\n\n'.format(window.kforce))
@@ -541,7 +541,7 @@ class RPMD:
                 # Spawn sampling trajectory in this window
                 windowEvolutionSteps = evolutionSteps
                 windowEquilibrationSteps = equilibrationSteps
-                logging.info('Spawning sampling trajectory at xi = {0:g}...'.format(window.xi))
+                logging.info('Spawning sampling trajectory at xi = {0:.4f}...'.format(window.xi))
                 p = self.sampleMomentum()
                 args = (self, window.xi, p, q, windowEquilibrationSteps, windowEvolutionSteps, window.kforce, saveTrajectories)
                 if pool:
@@ -552,7 +552,7 @@ class RPMD:
             count = 0  
             for window, result in results:
 
-                logging.info('Processing trajectory at xi = {0:g}...'.format(window.xi))
+                logging.info('Processing trajectory at xi = {0:.4f}...'.format(window.xi))
                     
                 # This line will block until the trajectory finishes
                 if pool:
@@ -574,7 +574,7 @@ class RPMD:
                 if dcount > 0:
                     logging.info('{0:11d} {1:15.8f} {2:15.8f} {3:15.5e}'.format(window.count, av, av2, variance))
     
-                umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:g}.dat'.format(window.xi))
+                umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:.4f}.dat'.format(window.xi))
                 f = open(umbrellaFilename, 'a')
                 f.write('{0:15.8f} {1:15.8f} {2:11d} {3:15.5e} {4:15.5e}\n'.format(window.av, window.av2, window.count, mean, variance))
                 f.flush()
@@ -729,7 +729,7 @@ class RPMD:
         logging.info('==========')
         logging.info('Temperature                             = {0:g} K'.format(self.T))
         logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
-        logging.info('Reaction coordinate                     = {0:g}'.format(xi_current))
+        logging.info('Reaction coordinate                     = {0:.4f}'.format(xi_current))
         logging.info('Time step                               = {0:g} ps'.format(self.dt * 2.418884326505e-5))
         logging.info('Total number of child trajectories      = {0:d}'.format(childTrajectories))
         logging.info('Initial parent equilibration time       = {0:g} ps ({1:d} steps)'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
@@ -740,7 +740,7 @@ class RPMD:
         
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        recrossingFilename = os.path.join(workingDirectory, 'recrossing_factor_{0:g}.dat'.format(self.xi_current))
+        recrossingFilename = os.path.join(workingDirectory, 'recrossing_factor_{0:.4f}.dat'.format(self.xi_current))
 
         # Look for existing output file for this calculation
         # If a file exists, we won't repeat the calculation unless more
@@ -902,7 +902,7 @@ class RPMD:
         f.write('Trajectory evolution time               = {0:g} ps ({1:d} steps)\n\n'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
         
         for xi, q in self.umbrellaConfigurations:
-            f.write('xi = {0:g}\n'.format(xi))
+            f.write('xi = {0:.4f}\n'.format(xi))
             for j in range(self.Natoms):
                 f.write('{0:5} {1:11.6f} {2:11.6f} {3:11.6f}\n'.format(self.reactants.atoms[j], q[0,j], q[1,j], q[2,j]))                
             f.write('\n')
@@ -1133,7 +1133,7 @@ class RPMD:
         
         f.write('Temperature                             = {0:g} K\n'.format(self.T))
         f.write('Number of beads                         = {0:d}\n'.format(self.Nbeads))
-        f.write('Reaction coordinate                     = {0:.6f}\n'.format(self.xi_current))
+        f.write('Reaction coordinate                     = {0:.4f}\n'.format(self.xi_current))
         f.write('Time step                               = {0:g} ps\n'.format(self.dt * 2.418884326505e-5))
         f.write('Total number of child trajectories      = {0:d}\n'.format(childTrajectories))
         f.write('Initial parent equilibration time       = {0:g} ps ({1:d} steps)\n'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
@@ -1339,7 +1339,7 @@ class RPMD:
         
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        rateFilename = os.path.join(workingDirectory, 'rate_coefficient_{0:g}.dat'.format(self.xi_current))
+        rateFilename = os.path.join(workingDirectory, 'rate_coefficient_{0:.4f}.dat'.format(self.xi_current))
 
         # Compute the rate coefficient using the reactant dividing surface
         Rinf = self.reactants.Rinf
