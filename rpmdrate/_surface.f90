@@ -49,8 +49,7 @@ module transition_state
     integer, parameter :: MAX_ATOMS = 100, MAX_BONDS = 16, MAX_TS = 16
 
     integer :: number_of_transition_states
-    integer :: number_of_forming_bonds
-    integer :: number_of_breaking_bonds
+    integer :: number_of_bonds
 
     integer :: forming_bonds(MAX_TS,MAX_BONDS,2)
     integer :: breaking_bonds(MAX_TS,MAX_BONDS,2)
@@ -71,33 +70,32 @@ contains
         implicit none
         integer, intent(in) :: Natoms
         double precision, intent(in) :: position(3,Natoms)
-        double precision, dimension(:), intent(out) :: values
+        double precision, dimension(:,:), intent(out) :: values
 
         integer :: m, n, atom1, atom2
         double precision :: Rx, Ry, Rz, R
 
-        values(:) = 0.0d0
+        values(:,:) = 0.0d0
 
         do n = 1, number_of_transition_states
 
-            do m = 1, number_of_forming_bonds
+            do m = 1, number_of_bonds
+                ! Forming bond
                 atom1 = forming_bonds(n,m,1)
                 atom2 = forming_bonds(n,m,2)
                 Rx = position(1,atom1) - position(1,atom2)
                 Ry = position(2,atom1) - position(2,atom2)
                 Rz = position(3,atom1) - position(3,atom2)
                 R = sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
-                values(n) = values(n) + (forming_bond_lengths(n,m) - R)
-            end do
-
-            do m = 1, number_of_breaking_bonds
+                values(n,m) = values(n,m) + (forming_bond_lengths(n,m) - R)
+                ! Breaking bond
                 atom1 = breaking_bonds(n,m,1)
                 atom2 = breaking_bonds(n,m,2)
                 Rx = position(1,atom1) - position(1,atom2)
                 Ry = position(2,atom1) - position(2,atom2)
                 Rz = position(3,atom1) - position(3,atom2)
                 R = sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
-                values(n) = values(n) - (breaking_bond_lengths(n,m) - R)
+                values(n,m) = values(n,m) - (breaking_bond_lengths(n,m) - R)
             end do
 
         end do
@@ -119,11 +117,11 @@ contains
         double precision, intent(in) :: position(3,Natoms)
         double precision, intent(out) :: s1
 
-        double precision :: values(number_of_transition_states)
+        double precision :: values(number_of_transition_states,number_of_bonds)
 
         call evaluate_all(position, Natoms, values)
 
-        s1 = maxval(values)
+        s1 = minval(maxval(values, 1))
 
     end subroutine value
 
@@ -141,7 +139,7 @@ contains
         double precision, intent(in) :: position(3,Natoms)
         double precision, intent(out) :: ds1(3,Natoms)
 
-        double precision :: values(number_of_transition_states)
+        double precision :: values(number_of_transition_states,number_of_bonds)
         integer :: m, n, atom1, atom2
         double precision :: Rx, Ry, Rz, Rinv
 
@@ -149,37 +147,36 @@ contains
 
         call evaluate_all(position, Natoms, values)
 
-        n = maxloc(values, 1)
+        n = minloc(maxval(values, 1), 1)
+        m = maxloc(values(n,:), 1)
 
-        do m = 1, number_of_forming_bonds
-            atom1 = forming_bonds(n,m,1)
-            atom2 = forming_bonds(n,m,2)
-            Rx = position(1,atom1) - position(1,atom2)
-            Ry = position(2,atom1) - position(2,atom2)
-            Rz = position(3,atom1) - position(3,atom2)
-            Rinv = 1.0/sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
-            ds1(1,atom1) = ds1(1,atom1) - Rx * Rinv
-            ds1(2,atom1) = ds1(2,atom1) - Ry * Rinv
-            ds1(3,atom1) = ds1(3,atom1) - Rz * Rinv
-            ds1(1,atom2) = ds1(1,atom2) + Rx * Rinv
-            ds1(2,atom2) = ds1(2,atom2) + Ry * Rinv
-            ds1(3,atom2) = ds1(3,atom2) + Rz * Rinv
-        end do
+        ! Forming bond
+        atom1 = forming_bonds(n,m,1)
+        atom2 = forming_bonds(n,m,2)
+        Rx = position(1,atom1) - position(1,atom2)
+        Ry = position(2,atom1) - position(2,atom2)
+        Rz = position(3,atom1) - position(3,atom2)
+        Rinv = 1.0/sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
+        ds1(1,atom1) = ds1(1,atom1) - Rx * Rinv
+        ds1(2,atom1) = ds1(2,atom1) - Ry * Rinv
+        ds1(3,atom1) = ds1(3,atom1) - Rz * Rinv
+        ds1(1,atom2) = ds1(1,atom2) + Rx * Rinv
+        ds1(2,atom2) = ds1(2,atom2) + Ry * Rinv
+        ds1(3,atom2) = ds1(3,atom2) + Rz * Rinv
 
-        do m = 1, number_of_breaking_bonds
-            atom1 = breaking_bonds(n,m,1)
-            atom2 = breaking_bonds(n,m,2)
-            Rx = position(1,atom1) - position(1,atom2)
-            Ry = position(2,atom1) - position(2,atom2)
-            Rz = position(3,atom1) - position(3,atom2)
-            Rinv = 1.0/sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
-            ds1(1,atom1) = ds1(1,atom1) + Rx * Rinv
-            ds1(2,atom1) = ds1(2,atom1) + Ry * Rinv
-            ds1(3,atom1) = ds1(3,atom1) + Rz * Rinv
-            ds1(1,atom2) = ds1(1,atom2) - Rx * Rinv
-            ds1(2,atom2) = ds1(2,atom2) - Ry * Rinv
-            ds1(3,atom2) = ds1(3,atom2) - Rz * Rinv
-        end do
+        ! Breaking bond
+        atom1 = breaking_bonds(n,m,1)
+        atom2 = breaking_bonds(n,m,2)
+        Rx = position(1,atom1) - position(1,atom2)
+        Ry = position(2,atom1) - position(2,atom2)
+        Rz = position(3,atom1) - position(3,atom2)
+        Rinv = 1.0/sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
+        ds1(1,atom1) = ds1(1,atom1) + Rx * Rinv
+        ds1(2,atom1) = ds1(2,atom1) + Ry * Rinv
+        ds1(3,atom1) = ds1(3,atom1) + Rz * Rinv
+        ds1(1,atom2) = ds1(1,atom2) - Rx * Rinv
+        ds1(2,atom2) = ds1(2,atom2) - Ry * Rinv
+        ds1(3,atom2) = ds1(3,atom2) - Rz * Rinv
 
     end subroutine gradient
 
@@ -197,7 +194,7 @@ contains
         double precision, intent(in) :: position(3,Natoms)
         double precision, intent(out) :: d2s1(3,Natoms,3,Natoms)
 
-        double precision :: values(number_of_transition_states)
+        double precision :: values(number_of_transition_states,number_of_bonds)
         integer :: m, n, atom1, atom2
         double precision :: Rx, Ry, Rz, Rinv
         double precision :: dxx, dyy, dzz, dxy, dxz, dyz
@@ -206,119 +203,118 @@ contains
 
         call evaluate_all(position, Natoms, values)
 
-        n = maxloc(values, 1)
+        n = minloc(maxval(values, 1), 1)
+        m = maxloc(values(n,:), 1)
 
-        do m = 1, number_of_forming_bonds
-            atom1 = forming_bonds(n,m,1)
-            atom2 = forming_bonds(n,m,2)
-            Rx = position(1,atom1) - position(1,atom2)
-            Ry = position(2,atom1) - position(2,atom2)
-            Rz = position(3,atom1) - position(3,atom2)
-            Rinv = 1.0/sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
+        ! Forming bond
+        atom1 = forming_bonds(n,m,1)
+        atom2 = forming_bonds(n,m,2)
+        Rx = position(1,atom1) - position(1,atom2)
+        Ry = position(2,atom1) - position(2,atom2)
+        Rz = position(3,atom1) - position(3,atom2)
+        Rinv = 1.0/sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
 
-            dxx = -(Ry * Ry + Rz * Rz) * (Rinv * Rinv * Rinv)
-            dyy = -(Rz * Rz + Rx * Rx) * (Rinv * Rinv * Rinv)
-            dzz = -(Rx * Rx + Ry * Ry) * (Rinv * Rinv * Rinv)
-            dxy = Rx * Ry * (Rinv * Rinv * Rinv)
-            dxz = Rx * Rz * (Rinv * Rinv * Rinv)
-            dyz = Ry * Rz * (Rinv * Rinv * Rinv)
+        dxx = -(Ry * Ry + Rz * Rz) * (Rinv * Rinv * Rinv)
+        dyy = -(Rz * Rz + Rx * Rx) * (Rinv * Rinv * Rinv)
+        dzz = -(Rx * Rx + Ry * Ry) * (Rinv * Rinv * Rinv)
+        dxy = Rx * Ry * (Rinv * Rinv * Rinv)
+        dxz = Rx * Rz * (Rinv * Rinv * Rinv)
+        dyz = Ry * Rz * (Rinv * Rinv * Rinv)
 
-            d2s1(1,atom1,1,atom1) = d2s1(1,atom1,1,atom1) + dxx
-            d2s1(1,atom1,2,atom1) = d2s1(1,atom1,2,atom1) + dxy
-            d2s1(1,atom1,3,atom1) = d2s1(1,atom1,3,atom1) + dxz
-            d2s1(2,atom1,1,atom1) = d2s1(2,atom1,1,atom1) + dxy
-            d2s1(2,atom1,2,atom1) = d2s1(2,atom1,2,atom1) + dyy
-            d2s1(2,atom1,3,atom1) = d2s1(2,atom1,3,atom1) + dyz
-            d2s1(3,atom1,1,atom1) = d2s1(3,atom1,1,atom1) + dxz
-            d2s1(3,atom1,2,atom1) = d2s1(3,atom1,2,atom1) + dyz
-            d2s1(3,atom1,3,atom1) = d2s1(3,atom1,3,atom1) + dzz
+        d2s1(1,atom1,1,atom1) = d2s1(1,atom1,1,atom1) + dxx
+        d2s1(1,atom1,2,atom1) = d2s1(1,atom1,2,atom1) + dxy
+        d2s1(1,atom1,3,atom1) = d2s1(1,atom1,3,atom1) + dxz
+        d2s1(2,atom1,1,atom1) = d2s1(2,atom1,1,atom1) + dxy
+        d2s1(2,atom1,2,atom1) = d2s1(2,atom1,2,atom1) + dyy
+        d2s1(2,atom1,3,atom1) = d2s1(2,atom1,3,atom1) + dyz
+        d2s1(3,atom1,1,atom1) = d2s1(3,atom1,1,atom1) + dxz
+        d2s1(3,atom1,2,atom1) = d2s1(3,atom1,2,atom1) + dyz
+        d2s1(3,atom1,3,atom1) = d2s1(3,atom1,3,atom1) + dzz
 
-            d2s1(1,atom1,1,atom2) = d2s1(1,atom1,1,atom2) - dxx
-            d2s1(1,atom1,2,atom2) = d2s1(1,atom1,2,atom2) - dxy
-            d2s1(1,atom1,3,atom2) = d2s1(1,atom1,3,atom2) - dxz
-            d2s1(2,atom1,1,atom2) = d2s1(2,atom1,1,atom2) - dxy
-            d2s1(2,atom1,2,atom2) = d2s1(2,atom1,2,atom2) - dyy
-            d2s1(2,atom1,3,atom2) = d2s1(2,atom1,3,atom2) - dyz
-            d2s1(3,atom1,1,atom2) = d2s1(3,atom1,1,atom2) - dxz
-            d2s1(3,atom1,2,atom2) = d2s1(3,atom1,2,atom2) - dyz
-            d2s1(3,atom1,3,atom2) = d2s1(3,atom1,3,atom2) - dzz
+        d2s1(1,atom1,1,atom2) = d2s1(1,atom1,1,atom2) - dxx
+        d2s1(1,atom1,2,atom2) = d2s1(1,atom1,2,atom2) - dxy
+        d2s1(1,atom1,3,atom2) = d2s1(1,atom1,3,atom2) - dxz
+        d2s1(2,atom1,1,atom2) = d2s1(2,atom1,1,atom2) - dxy
+        d2s1(2,atom1,2,atom2) = d2s1(2,atom1,2,atom2) - dyy
+        d2s1(2,atom1,3,atom2) = d2s1(2,atom1,3,atom2) - dyz
+        d2s1(3,atom1,1,atom2) = d2s1(3,atom1,1,atom2) - dxz
+        d2s1(3,atom1,2,atom2) = d2s1(3,atom1,2,atom2) - dyz
+        d2s1(3,atom1,3,atom2) = d2s1(3,atom1,3,atom2) - dzz
 
-            d2s1(1,atom2,1,atom1) = d2s1(1,atom2,1,atom1) - dxx
-            d2s1(1,atom2,2,atom1) = d2s1(1,atom2,2,atom1) - dxy
-            d2s1(1,atom2,3,atom1) = d2s1(1,atom2,3,atom1) - dxz
-            d2s1(2,atom2,1,atom1) = d2s1(2,atom2,1,atom1) - dxy
-            d2s1(2,atom2,2,atom1) = d2s1(2,atom2,2,atom1) - dyy
-            d2s1(2,atom2,3,atom1) = d2s1(2,atom2,3,atom1) - dyz
-            d2s1(3,atom2,1,atom1) = d2s1(3,atom2,1,atom1) - dxz
-            d2s1(3,atom2,2,atom1) = d2s1(3,atom2,2,atom1) - dyz
-            d2s1(3,atom2,3,atom1) = d2s1(3,atom2,3,atom1) - dzz
+        d2s1(1,atom2,1,atom1) = d2s1(1,atom2,1,atom1) - dxx
+        d2s1(1,atom2,2,atom1) = d2s1(1,atom2,2,atom1) - dxy
+        d2s1(1,atom2,3,atom1) = d2s1(1,atom2,3,atom1) - dxz
+        d2s1(2,atom2,1,atom1) = d2s1(2,atom2,1,atom1) - dxy
+        d2s1(2,atom2,2,atom1) = d2s1(2,atom2,2,atom1) - dyy
+        d2s1(2,atom2,3,atom1) = d2s1(2,atom2,3,atom1) - dyz
+        d2s1(3,atom2,1,atom1) = d2s1(3,atom2,1,atom1) - dxz
+        d2s1(3,atom2,2,atom1) = d2s1(3,atom2,2,atom1) - dyz
+        d2s1(3,atom2,3,atom1) = d2s1(3,atom2,3,atom1) - dzz
 
-            d2s1(1,atom2,1,atom2) = d2s1(1,atom2,1,atom2) + dxx
-            d2s1(1,atom2,2,atom2) = d2s1(1,atom2,2,atom2) + dxy
-            d2s1(1,atom2,3,atom2) = d2s1(1,atom2,3,atom2) + dxz
-            d2s1(2,atom2,1,atom2) = d2s1(2,atom2,1,atom2) + dxy
-            d2s1(2,atom2,2,atom2) = d2s1(2,atom2,2,atom2) + dyy
-            d2s1(2,atom2,3,atom2) = d2s1(2,atom2,3,atom2) + dyz
-            d2s1(3,atom2,1,atom2) = d2s1(3,atom2,1,atom2) + dxz
-            d2s1(3,atom2,2,atom2) = d2s1(3,atom2,2,atom2) + dyz
-            d2s1(3,atom2,3,atom2) = d2s1(3,atom2,3,atom2) + dzz
-        end do
+        d2s1(1,atom2,1,atom2) = d2s1(1,atom2,1,atom2) + dxx
+        d2s1(1,atom2,2,atom2) = d2s1(1,atom2,2,atom2) + dxy
+        d2s1(1,atom2,3,atom2) = d2s1(1,atom2,3,atom2) + dxz
+        d2s1(2,atom2,1,atom2) = d2s1(2,atom2,1,atom2) + dxy
+        d2s1(2,atom2,2,atom2) = d2s1(2,atom2,2,atom2) + dyy
+        d2s1(2,atom2,3,atom2) = d2s1(2,atom2,3,atom2) + dyz
+        d2s1(3,atom2,1,atom2) = d2s1(3,atom2,1,atom2) + dxz
+        d2s1(3,atom2,2,atom2) = d2s1(3,atom2,2,atom2) + dyz
+        d2s1(3,atom2,3,atom2) = d2s1(3,atom2,3,atom2) + dzz
 
-        do m = 1, number_of_breaking_bonds
-            atom1 = breaking_bonds(n,m,1)
-            atom2 = breaking_bonds(n,m,2)
-            Rx = position(1,atom1) - position(1,atom2)
-            Ry = position(2,atom1) - position(2,atom2)
-            Rz = position(3,atom1) - position(3,atom2)
-            Rinv = 1.0/sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
+        ! Breaking bond
+        atom1 = breaking_bonds(n,m,1)
+        atom2 = breaking_bonds(n,m,2)
+        Rx = position(1,atom1) - position(1,atom2)
+        Ry = position(2,atom1) - position(2,atom2)
+        Rz = position(3,atom1) - position(3,atom2)
+        Rinv = 1.0/sqrt(Rx * Rx + Ry * Ry + Rz * Rz)
 
-            dxx = (Ry * Ry + Rz * Rz) * (Rinv * Rinv * Rinv)
-            dyy = (Rz * Rz + Rx * Rx) * (Rinv * Rinv * Rinv)
-            dzz = (Rx * Rx + Ry * Ry) * (Rinv * Rinv * Rinv)
-            dxy = -Rx * Ry * (Rinv * Rinv * Rinv)
-            dxz = -Rx * Rz * (Rinv * Rinv * Rinv)
-            dyz = -Ry * Rz * (Rinv * Rinv * Rinv)
+        dxx = (Ry * Ry + Rz * Rz) * (Rinv * Rinv * Rinv)
+        dyy = (Rz * Rz + Rx * Rx) * (Rinv * Rinv * Rinv)
+        dzz = (Rx * Rx + Ry * Ry) * (Rinv * Rinv * Rinv)
+        dxy = -Rx * Ry * (Rinv * Rinv * Rinv)
+        dxz = -Rx * Rz * (Rinv * Rinv * Rinv)
+        dyz = -Ry * Rz * (Rinv * Rinv * Rinv)
 
-            d2s1(1,atom1,1,atom1) = d2s1(1,atom1,1,atom1) + dxx
-            d2s1(1,atom1,2,atom1) = d2s1(1,atom1,2,atom1) + dxy
-            d2s1(1,atom1,3,atom1) = d2s1(1,atom1,3,atom1) + dxz
-            d2s1(2,atom1,1,atom1) = d2s1(2,atom1,1,atom1) + dxy
-            d2s1(2,atom1,2,atom1) = d2s1(2,atom1,2,atom1) + dyy
-            d2s1(2,atom1,3,atom1) = d2s1(2,atom1,3,atom1) + dyz
-            d2s1(3,atom1,1,atom1) = d2s1(3,atom1,1,atom1) + dxz
-            d2s1(3,atom1,2,atom1) = d2s1(3,atom1,2,atom1) + dyz
-            d2s1(3,atom1,3,atom1) = d2s1(3,atom1,3,atom1) + dzz
+        d2s1(1,atom1,1,atom1) = d2s1(1,atom1,1,atom1) + dxx
+        d2s1(1,atom1,2,atom1) = d2s1(1,atom1,2,atom1) + dxy
+        d2s1(1,atom1,3,atom1) = d2s1(1,atom1,3,atom1) + dxz
+        d2s1(2,atom1,1,atom1) = d2s1(2,atom1,1,atom1) + dxy
+        d2s1(2,atom1,2,atom1) = d2s1(2,atom1,2,atom1) + dyy
+        d2s1(2,atom1,3,atom1) = d2s1(2,atom1,3,atom1) + dyz
+        d2s1(3,atom1,1,atom1) = d2s1(3,atom1,1,atom1) + dxz
+        d2s1(3,atom1,2,atom1) = d2s1(3,atom1,2,atom1) + dyz
+        d2s1(3,atom1,3,atom1) = d2s1(3,atom1,3,atom1) + dzz
 
-            d2s1(1,atom1,1,atom2) = d2s1(1,atom1,1,atom2) - dxx
-            d2s1(1,atom1,2,atom2) = d2s1(1,atom1,2,atom2) - dxy
-            d2s1(1,atom1,3,atom2) = d2s1(1,atom1,3,atom2) - dxz
-            d2s1(2,atom1,1,atom2) = d2s1(2,atom1,1,atom2) - dxy
-            d2s1(2,atom1,2,atom2) = d2s1(2,atom1,2,atom2) - dyy
-            d2s1(2,atom1,3,atom2) = d2s1(2,atom1,3,atom2) - dyz
-            d2s1(3,atom1,1,atom2) = d2s1(3,atom1,1,atom2) - dxz
-            d2s1(3,atom1,2,atom2) = d2s1(3,atom1,2,atom2) - dyz
-            d2s1(3,atom1,3,atom2) = d2s1(3,atom1,3,atom2) - dzz
+        d2s1(1,atom1,1,atom2) = d2s1(1,atom1,1,atom2) - dxx
+        d2s1(1,atom1,2,atom2) = d2s1(1,atom1,2,atom2) - dxy
+        d2s1(1,atom1,3,atom2) = d2s1(1,atom1,3,atom2) - dxz
+        d2s1(2,atom1,1,atom2) = d2s1(2,atom1,1,atom2) - dxy
+        d2s1(2,atom1,2,atom2) = d2s1(2,atom1,2,atom2) - dyy
+        d2s1(2,atom1,3,atom2) = d2s1(2,atom1,3,atom2) - dyz
+        d2s1(3,atom1,1,atom2) = d2s1(3,atom1,1,atom2) - dxz
+        d2s1(3,atom1,2,atom2) = d2s1(3,atom1,2,atom2) - dyz
+        d2s1(3,atom1,3,atom2) = d2s1(3,atom1,3,atom2) - dzz
 
-            d2s1(1,atom2,1,atom1) = d2s1(1,atom2,1,atom1) - dxx
-            d2s1(1,atom2,2,atom1) = d2s1(1,atom2,2,atom1) - dxy
-            d2s1(1,atom2,3,atom1) = d2s1(1,atom2,3,atom1) - dxz
-            d2s1(2,atom2,1,atom1) = d2s1(2,atom2,1,atom1) - dxy
-            d2s1(2,atom2,2,atom1) = d2s1(2,atom2,2,atom1) - dyy
-            d2s1(2,atom2,3,atom1) = d2s1(2,atom2,3,atom1) - dyz
-            d2s1(3,atom2,1,atom1) = d2s1(3,atom2,1,atom1) - dxz
-            d2s1(3,atom2,2,atom1) = d2s1(3,atom2,2,atom1) - dyz
-            d2s1(3,atom2,3,atom1) = d2s1(3,atom2,3,atom1) - dzz
+        d2s1(1,atom2,1,atom1) = d2s1(1,atom2,1,atom1) - dxx
+        d2s1(1,atom2,2,atom1) = d2s1(1,atom2,2,atom1) - dxy
+        d2s1(1,atom2,3,atom1) = d2s1(1,atom2,3,atom1) - dxz
+        d2s1(2,atom2,1,atom1) = d2s1(2,atom2,1,atom1) - dxy
+        d2s1(2,atom2,2,atom1) = d2s1(2,atom2,2,atom1) - dyy
+        d2s1(2,atom2,3,atom1) = d2s1(2,atom2,3,atom1) - dyz
+        d2s1(3,atom2,1,atom1) = d2s1(3,atom2,1,atom1) - dxz
+        d2s1(3,atom2,2,atom1) = d2s1(3,atom2,2,atom1) - dyz
+        d2s1(3,atom2,3,atom1) = d2s1(3,atom2,3,atom1) - dzz
 
-            d2s1(1,atom2,1,atom2) = d2s1(1,atom2,1,atom2) + dxx
-            d2s1(1,atom2,2,atom2) = d2s1(1,atom2,2,atom2) + dxy
-            d2s1(1,atom2,3,atom2) = d2s1(1,atom2,3,atom2) + dxz
-            d2s1(2,atom2,1,atom2) = d2s1(2,atom2,1,atom2) + dxy
-            d2s1(2,atom2,2,atom2) = d2s1(2,atom2,2,atom2) + dyy
-            d2s1(2,atom2,3,atom2) = d2s1(2,atom2,3,atom2) + dyz
-            d2s1(3,atom2,1,atom2) = d2s1(3,atom2,1,atom2) + dxz
-            d2s1(3,atom2,2,atom2) = d2s1(3,atom2,2,atom2) + dyz
-            d2s1(3,atom2,3,atom2) = d2s1(3,atom2,3,atom2) + dzz
-        end do
+        d2s1(1,atom2,1,atom2) = d2s1(1,atom2,1,atom2) + dxx
+        d2s1(1,atom2,2,atom2) = d2s1(1,atom2,2,atom2) + dxy
+        d2s1(1,atom2,3,atom2) = d2s1(1,atom2,3,atom2) + dxz
+        d2s1(2,atom2,1,atom2) = d2s1(2,atom2,1,atom2) + dxy
+        d2s1(2,atom2,2,atom2) = d2s1(2,atom2,2,atom2) + dyy
+        d2s1(2,atom2,3,atom2) = d2s1(2,atom2,3,atom2) + dyz
+        d2s1(3,atom2,1,atom2) = d2s1(3,atom2,1,atom2) + dxz
+        d2s1(3,atom2,2,atom2) = d2s1(3,atom2,2,atom2) + dyz
+        d2s1(3,atom2,3,atom2) = d2s1(3,atom2,3,atom2) + dzz
 
     end subroutine hessian
 
@@ -360,15 +356,16 @@ contains
         double precision, intent(in) :: Rmax
         integer, intent(inout) :: result
 
-        double precision :: values(number_of_transition_states)
+        double precision :: values(number_of_transition_states,number_of_bonds)
         integer :: m, n, atom1, atom2
         double precision :: Rx, Ry, Rz, R
 
         call evaluate_all(position, Natoms, values)
 
-        n = maxloc(values, 1)
+        n = minloc(maxval(values, 1), 1)
 
-        do m = 1, number_of_forming_bonds
+        do m = 1, number_of_bonds
+            ! Forming bond
             atom1 = forming_bonds(n,m,1)
             atom2 = forming_bonds(n,m,2)
             Rx = position(1,atom1) - position(1,atom2)
@@ -379,9 +376,7 @@ contains
                 result = 1
                 return
             end if
-        end do
-
-        do m = 1, number_of_breaking_bonds
+            ! Breaking bond
             atom1 = breaking_bonds(n,m,1)
             atom2 = breaking_bonds(n,m,2)
             Rx = position(1,atom1) - position(1,atom2)
@@ -410,17 +405,18 @@ contains
         double precision, intent(in) :: position(3,Natoms)
         integer, intent(inout) :: result
 
-        double precision :: values(number_of_transition_states), max_value
-        integer :: n, Neq
+        double precision :: values(number_of_transition_states,number_of_bonds), max_value
+        integer :: m, n, Neq
 
         call evaluate_all(position, Natoms, values)
 
-        n = maxloc(values, 1)
-        max_value = values(n)
+        n = minloc(maxval(values, 1), 1)
+        m = maxloc(values(n,:), 1)
+        max_value = values(n,m)
 
         Neq = 0
         do n = 1, number_of_transition_states
-            if (abs(values(n) - max_value) < 1.0e-10) Neq = Neq + 1
+            if (abs(values(n,m) - max_value) < 1.0e-10) Neq = Neq + 1
         end do
 
         if (Neq .ne. 1) result = 1

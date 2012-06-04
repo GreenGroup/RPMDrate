@@ -102,11 +102,12 @@ class TransitionState:
         """
         Nforming_bonds = self.formingBonds.shape[0]
         Nbreaking_bonds = self.breakingBonds.shape[0]
-
+        assert Nforming_bonds == Nbreaking_bonds
+        
         if module is None: module = transition_state
 
         module.number_of_transition_states = 1
-        module.number_of_forming_bonds = Nforming_bonds
+        module.number_of_bonds = Nforming_bonds
         module.forming_bonds[0,0:Nforming_bonds,:] = self.formingBonds
         module.forming_bond_lengths[0,0:Nforming_bonds] = self.formingBondLengths
         module.number_of_breaking_bonds = Nbreaking_bonds

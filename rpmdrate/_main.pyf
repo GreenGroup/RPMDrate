@@ -201,9 +201,8 @@ python module _main ! in
         module transition_state ! in :_main:rpmd/_surface.f90
             integer, parameter,optional :: max_ts=16
             integer, parameter,optional :: max_atoms=100
-            integer :: number_of_forming_bonds
+            integer :: number_of_bonds
             double precision dimension(16,16) :: forming_bond_lengths
-            integer :: number_of_breaking_bonds
             double precision dimension(16,16) :: breaking_bond_lengths
             integer, parameter,optional :: max_bonds=16
             integer :: number_of_transition_states
@@ -212,7 +211,7 @@ python module _main ! in
             subroutine evaluate_all(position,natoms,values) ! in :_main:rpmd/_surface.f90:transition_state
                 double precision dimension(3,natoms),intent(in) :: position
                 integer, optional,intent(in),check(shape(position,1)==natoms),depend(position) :: natoms=shape(position,1)
-                double precision dimension(:),intent(out) :: values
+                double precision dimension(:,:),intent(out) :: values
             end subroutine evaluate_all
             subroutine value(position,natoms,s1) ! in :_main:rpmd/_surface.f90:transition_state
                 double precision dimension(3,natoms),intent(in) :: position
