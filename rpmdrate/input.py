@@ -172,10 +172,53 @@ def loadInputFile(path, T, Nbeads, processes=1):
         else:
             errorList.append('Invalid thermostat {0!r}; valid thermostats are Andersen and GLE.'.format(thermostatType))
     
+    # Sanity checking of the specified breaking and forming bond pairs in the transition state
+    Nbonds = transitionState.formingBonds.shape[0]
+    if transitionState.breakingBonds.shape[0] != Nbonds:
+        errorList.append('Different number of forming and breaking bonds encountered in transition state; these must be paired.')
+    for formingBonds, breakingBonds in equivalentTransitionStates:
+        if len(formingBonds) != Nbonds or len(breakingBonds) != Nbonds:
+            errorList.append('Different number of forming and breaking bonds encountered in an equivalent transition state; these must correspond to those in the first transition state.')
+    for n in range(Nbonds):
+        atom1Found = transitionState.formingBonds[n,0] in transitionState.breakingBonds[n,:]
+        atom2Found = transitionState.formingBonds[n,1] in transitionState.breakingBonds[n,:]
+        if atom1Found and atom2Found:
+            errorList.append('In main transition state, forming bond ({0:d},{1:d}) is the same as a breaking bond ({2:d},{3:d}).'.format(
+                transitionState.formingBonds[n,0],
+                transitionState.formingBonds[n,1],
+                transitionState.breakingBonds[n,0],
+                transitionState.breakingBonds[n,1],
+            ))
+        elif not atom1Found and not atom2Found:
+            errorList.append('In main transition state, forming bond ({0:d},{1:d}) and breaking bond ({2:d},{3:d}) do not share an atom in common.'.format(
+                transitionState.formingBonds[n,0],
+                transitionState.formingBonds[n,1],
+                transitionState.breakingBonds[n,0],
+                transitionState.breakingBonds[n,1],
+            ))
+    for formingBonds, breakingBonds in equivalentTransitionStates:
+        for n in range(Nbonds):
+            atom1Found = formingBonds[n][0] in breakingBonds[n]
+            atom2Found = formingBonds[n][1] in breakingBonds[n]
+            if atom1Found and atom2Found:
+                errorList.append('In an equivalent transition state, forming bond ({0:d},{1:d}) is the same as a breaking bond ({2:d},{3:d}).'.format(
+                    formingBonds[n][0],
+                    formingBonds[n][1],
+                    breakingBonds[n][0],
+                    breakingBonds[n][1],
+                ))
+            elif not atom1Found and not atom2Found:
+                errorList.append('In an equivalent transition state, forming bond ({0:d},{1:d}) and breaking bond ({2:d},{3:d}) do not share an atom in common.'.format(
+                    formingBonds[n][0],
+                    formingBonds[n][1],
+                    breakingBonds[n][0],
+                    breakingBonds[n][1],
+                ))
+        
+        
     if errorList:
         raise InputError('The input file {0!r} was invalid:\n- {1}'.format(path, '\n- '.join(errorList)))
     
-        
     system = RPMD(
         label = label,
         T = T,
