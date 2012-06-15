@@ -1327,8 +1327,6 @@ class RPMD:
         
         if self.potentialOfMeanForce is None:
             raise RPMDError('You must run computePotentialOfMeanForce() before running computeRateCoefficient().')
-        if self.recrossingFactor is None:
-            logging.warning('computeRecrossingFactor() not before running computeRateCoefficient(); recrossing factor assumed to be unity.')
         
         logging.info('*********************')
         logging.info('RPMD rate coefficient')
@@ -1340,6 +1338,13 @@ class RPMD:
         logging.info('Temperature                             = {0:g} K'.format(self.T))
         logging.info('Number of beads                         = {0:d}'.format(self.Nbeads))
         logging.info('')
+        
+        if self.recrossingFactor is None:
+            logging.warning('computeRecrossingFactor() not before running computeRateCoefficient(); recrossing factor assumed to be unity.')
+            index = numpy.argmax(self.potentialOfMeanForce[1,:])
+            xi_current = self.potentialOfMeanForce[0,index]
+        else:
+            xi_current = self.xi_current
         
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
@@ -1356,7 +1361,7 @@ class RPMD:
         # (Use the same xi_current as used in the recrossing factor calculation)
         from rpmdrate.interpolate import LinearInterpolator
         f = LinearInterpolator(self.potentialOfMeanForce[0,:], self.potentialOfMeanForce[1,:])
-        W1 = f(self.xi_current)
+        W1 = f(xi_current)
         W0 = f(0.0)
         staticFactor = float(numpy.exp(-self.beta * (W1 - W0)))
         
