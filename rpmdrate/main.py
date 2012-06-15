@@ -636,11 +636,15 @@ class RPMD:
             dA[n] = numpy.sum(N * p * dA0) / numpy.sum(N * p)
             
         # Now integrate numerically to get the potential of mean force
-        self.potentialOfMeanForce = numpy.zeros((2,bins))
-        for n, xi in enumerate(xi_list):
-            self.potentialOfMeanForce[0,n] = xi_list[n]
-            self.potentialOfMeanForce[1,n] = numpy.trapz(dA[:n], xi_list[:n])
-             
+        self.potentialOfMeanForce = numpy.zeros((2,bins-1))
+        A = 0.0
+        for n in range(bins-1):
+            dx = xi_list[n+1] - xi_list[n]
+            self.potentialOfMeanForce[0,n] = 0.5 * (xi_list[n] + xi_list[n+1])
+            A += 0.5 * dx * (dA[n] + dA[n+1])
+            self.potentialOfMeanForce[1,n] = A
+        self.potentialOfMeanForce[1,:] -= numpy.min(self.potentialOfMeanForce[1,:])
+        
         # Save the results to file
         self.savePotentialOfMeanForce(potentialFilename)
 
