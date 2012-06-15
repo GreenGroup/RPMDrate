@@ -3,11 +3,11 @@
 
 ################################################################################
 #
-#   RPMDrate - Ring polymer molecular dynamics simulations
+#   RPMDrate - Bimolecular reaction rates via ring polymer molecular dynamics
 #
 #   Copyright (c) 2012 by Joshua W. Allen (jwallen@mit.edu)
-#                         Yury V. Suleimanov (ysuleyma@mit.edu)
 #                         William H. Green (whgreen@mit.edu)
+#                         Yury V. Suleimanov (ysuleyma@mit.edu, ysuleyma@princeton.edu)
 #
 #   Permission is hereby granted, free of charge, to any person obtaining a 
 #   copy of this software and associated documentation files (the "Software"), 
@@ -77,9 +77,9 @@ ext_modules = [
 setup(
     name = 'RPMDrate',
     version = '0.1.0',
-    description = 'Ring polymer molecular dynamics simulations',
-    author = 'Joshua W. Allen, Yury V. Suleimanov, William H. Green',
-    author_email = 'rpmd_dev@mit.edu',
+    description = 'Bimolecular reaction rates via ring polymer molecular dynamics',
+    author = 'Joshua W. Allen, William H. Green, Yury V. Suleimanov',
+    author_email = 'jwallen@mit.edu, whgreen@mit.edu, ysuleyma@mit.edu, ysuleyma@princeton.edu',
     url = 'http://github.com/GreenGroup/RPMDrate',
     packages = ['rpmdrate'],
     cmdclass = {'test': test},

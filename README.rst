@@ -1,6 +1,6 @@
-******************************************************
-RPMDrate - Ring polymer molecular dynamics simulations
-******************************************************
+*************************************************************************
+RPMDrate - Bimolecular reaction rates via ring polymer molecular dynamics
+*************************************************************************
 
 About RPMDrate
 ==============
@@ -16,8 +16,8 @@ RPMDrate is distributed under the terms of the
 `MIT license <http://www.opensource.org/licenses/mit-license>`_::
 
     Copyright (c) 2012 by Joshua W. Allen (jwallen@mit.edu)
-                          Yury V. Suleimanov (ysuleyma@mit.edu)
                           William H. Green (whgreen@mit.edu)
+                          Yury V. Suleimanov (ysuleyma@mit.edu, ysuleyma@princeton.edu)
     
     Permission is hereby granted, free of charge, to any person obtaining a 
     copy of this software and associated documentation files (the "Software"), 
