@@ -78,11 +78,14 @@ class LinearInterpolator(object):
             y1 = ydata[imax]
             x2 = xdata[imin]
             x1 = xdata[imax]
-        else:
+        elif imin < imax:
             y2 = ydata[imax]
             y1 = ydata[imin]
             x2 = xdata[imax]
             x1 = xdata[imin]
+        else:
+            return ydata[imin]
+            
         return (y2 - y1) / (x2 - x1) * (x - x1) + y1
 
 ################################################################################
@@ -127,11 +130,14 @@ class SemiLogXInterpolator(object):
             y1 = ydata[imax]
             x2 = xdata[imin]
             x1 = xdata[imax]
-        else:
+        elif imin < imax:
             y2 = ydata[imax]
             y1 = ydata[imin]
             x2 = xdata[imax]
             x1 = xdata[imin]
+        else:
+            return ydata[imin]
+
         return (y2 - y1) / (x2 - x1) * (x - x1) + y1
 
 #################################################################################
@@ -174,11 +180,14 @@ class SemiLogYInterpolator(object):
             y1 = ydata[imax]
             x2 = xdata[imin]
             x1 = xdata[imax]
-        else:
+        elif imin < imax:
             y2 = ydata[imax]
             y1 = ydata[imin]
             x2 = xdata[imax]
             x1 = xdata[imin]
+        else:
+            return math.exp(ydata[imin])
+
         return math.exp((y2 - y1) / (x2 - x1) * (x - x1) + y1)
 
 #################################################################################
@@ -223,9 +232,12 @@ class LogLogInterpolator(object):
             y1 = ydata[imax]
             x2 = xdata[imin]
             x1 = xdata[imax]
-        else:
+        elif imin < imax:
             y2 = ydata[imax]
             y1 = ydata[imin]
             x2 = xdata[imax]
             x1 = xdata[imin]
+        else:
+            return math.exp(ydata[imin])
+
         return math.exp((y2 - y1) / (x2 - x1) * (x - x1) + y1)
