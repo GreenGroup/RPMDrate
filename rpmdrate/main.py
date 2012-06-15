@@ -263,7 +263,8 @@ class RPMD:
         Nts = len(self.transitionStates)
         Nforming_bonds = max([ts.formingBonds.shape[0] for ts in self.transitionStates])
         Nbreaking_bonds = max([ts.breakingBonds.shape[0] for ts in self.transitionStates])
-
+        assert Nforming_bonds == Nbreaking_bonds
+        
         formingBonds = numpy.zeros((Nts,Nforming_bonds,2))
         breakingBonds = numpy.zeros((Nts,Nbreaking_bonds,2))
         formingBondLengths = numpy.zeros((Nts,Nforming_bonds))
@@ -276,10 +277,9 @@ class RPMD:
             breakingBondLengths[n,:] = ts.breakingBondLengths
         
         transition_state.number_of_transition_states = Nts
-        transition_state.number_of_forming_bonds = Nforming_bonds
+        transition_state.number_of_bonds = Nforming_bonds
         transition_state.forming_bonds[0:Nts,0:Nforming_bonds,:] = formingBonds
         transition_state.forming_bond_lengths[0:Nts,0:Nforming_bonds] = formingBondLengths
-        transition_state.number_of_breaking_bonds = Nbreaking_bonds
         transition_state.breaking_bonds[0:Nts,0:Nbreaking_bonds,:] = breakingBonds
         transition_state.breaking_bond_lengths[0:Nts,0:Nbreaking_bonds] = breakingBondLengths
     
