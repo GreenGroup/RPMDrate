@@ -147,8 +147,8 @@ contains
 
         call evaluate_all(position, Natoms, values)
 
-        n = minloc(maxval(values, 1), 1)
-        m = maxloc(values(n,:), 1)
+        m = minloc(maxval(values, 1), 1)
+        n = maxloc(values(:,m), 1)
 
         ! Forming bond
         atom1 = forming_bonds(n,m,1)
@@ -203,8 +203,8 @@ contains
 
         call evaluate_all(position, Natoms, values)
 
-        n = minloc(maxval(values, 1), 1)
-        m = maxloc(values(n,:), 1)
+        m = minloc(maxval(values, 1), 1)
+        n = maxloc(values(:,m), 1)
 
         ! Forming bond
         atom1 = forming_bonds(n,m,1)
@@ -362,7 +362,8 @@ contains
 
         call evaluate_all(position, Natoms, values)
 
-        n = minloc(maxval(values, 1), 1)
+        m = minloc(maxval(values, 1), 1)
+        n = maxloc(values(:,m), 1)
 
         do m = 1, number_of_bonds
             ! Forming bond
@@ -410,8 +411,8 @@ contains
 
         call evaluate_all(position, Natoms, values)
 
-        n = minloc(maxval(values, 1), 1)
-        m = maxloc(values(n,:), 1)
+        m = minloc(maxval(values, 1), 1)
+        n = maxloc(values(:,m), 1)
         max_value = values(n,m)
 
         Neq = 0
