@@ -61,11 +61,11 @@ def runUmbrellaTrajectory(rpmd, xi_current, p, q, equilibrationSteps, evolutionS
     rpmd.activate()
     steps = 0
     while steps < evolutionSteps:
-        p = numpy.asfortranarray(p.copy())
-        q = numpy.asfortranarray(q.copy())
-        result = system.equilibrate(0, p, q, equilibrationSteps, xi_current, rpmd.potential, kforce, False, saveTrajectory)
+        p1 = numpy.asfortranarray(p.copy())
+        q1 = numpy.asfortranarray(q.copy())
+        result = system.equilibrate(0, p1, q1, equilibrationSteps, xi_current, rpmd.potential, kforce, False, saveTrajectory)
         if result != 0: continue
-        dav, dav2, actualSteps, result = system.umbrella_trajectory(0, p, q, evolutionSteps - steps, xi_current, rpmd.potential, kforce, saveTrajectory)
+        dav, dav2, actualSteps, result = system.umbrella_trajectory(0, p1, q1, evolutionSteps - steps, xi_current, rpmd.potential, kforce, saveTrajectory)
         steps += actualSteps
         if result != 0: continue
     
