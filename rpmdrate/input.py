@@ -94,14 +94,19 @@ def computeRecrossingFactor(dt, equilibrationTime, childTrajectories, childSampl
 def computeRateCoefficient():
     global jobList
     jobList.append(['rate', tuple()])
-    
+
+getPotential = None
+def potential(q):
+    global getPotential
+    return getPotential(q)
+
 ################################################################################
 
 def loadInputFile(path, T, Nbeads, processes=1):
     """
     Load the RPMD input file located at `path`.
     """
-    global reactants, transitionState, equivalentTransitionStates, thermostat, jobList
+    global reactants, transitionState, equivalentTransitionStates, thermostat, jobList, getPotential
     
     logging.info('Reading input file {0!r}...'.format(path))
     
@@ -225,8 +230,9 @@ def loadInputFile(path, T, Nbeads, processes=1):
         Nbeads = Nbeads,
         reactants = reactants, 
         transitionState = transitionState, 
-        potential = lambda q: getPotential(q),
+        potential = potential,
         thermostat = thermostat,
+        processes = processes,
         outputDirectory = os.path.dirname(path),
     )
     for formingBonds, breakingBonds in equivalentTransitionStates:

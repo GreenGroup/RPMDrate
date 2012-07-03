@@ -162,7 +162,7 @@ class RPMD:
     
     """
 
-    def __init__(self, label, T, Nbeads, reactants, transitionState, potential, thermostat, outputDirectory='.'):
+    def __init__(self, label, T, Nbeads, reactants, transitionState, potential, thermostat, processes=1, outputDirectory='.'):
         """
         Initialize an RPMD object. The `mass` of each atom should be given in
         g/mol, while the `Rinf` value should be given in angstroms. (They will
@@ -177,6 +177,7 @@ class RPMD:
         self.transitionStates = [transitionState]
         self.potential = potential
         self.thermostat = thermostat
+        self.processes = processes
         self.outputDirectory = os.path.abspath(outputDirectory)
         
         self.beta = 4.35974417e-18 / (constants.kB * self.T)
@@ -420,7 +421,6 @@ class RPMD:
     def conductUmbrellaSampling(self, 
                                 dt, 
                                 windows,
-                                processes=1,
                                 saveTrajectories=False):
         """
         Return the value of the static factor :math:`p^{(n)}(s_1, s_0)` as
@@ -436,6 +436,7 @@ class RPMD:
         Nwindows = len(windows)
         thermostat = self.thermostat
         self.mode = 1
+        processes = self.processes
         
         # Create a pool of subprocesses to farm out the individual trajectories to
         try:
@@ -656,7 +657,6 @@ class RPMD:
                                 childrenPerSampling,
                                 childEvolutionTime,
                                 xi_current=None,
-                                processes=1,
                                 saveParentTrajectory=False, 
                                 saveChildTrajectories=False):
         """
@@ -705,6 +705,7 @@ class RPMD:
         self.xi_current = xi_current
         thermostat = self.thermostat
         self.mode = 2
+        processes = self.processes
         
         # Initialize parameters used to compute recrossing factor
         kappa_num = numpy.zeros(childEvolutionSteps, order='F')
