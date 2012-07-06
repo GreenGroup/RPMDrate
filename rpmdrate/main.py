@@ -386,7 +386,7 @@ class RPMD:
             
             # Equilibrate in this window
             logging.info('Generating configuration at xi = {0:.4f} for {1:g} ps...'.format(xi_current, evolutionSteps * self.dt * 2.418884326505e-5))
-            p = self.sampleMomentum()[:,:,0:Nbeads]
+            p = self.sampleMomentum(Nbeads=Nbeads)
             result = system.equilibrate(0, p, q, evolutionSteps, xi_current, self.potential, kforce[l], False, False)
             logging.info('Finished generating configuration at xi = {0:.4f}.'.format(xi_current))
             q_initial[:,:,l] = q[:,:,0]
@@ -399,7 +399,7 @@ class RPMD:
             
             # Equilibrate in this window
             logging.info('Generating configuration at xi = {0:.4f} for {1:g} ps...'.format(xi_current, evolutionSteps * self.dt * 2.418884326505e-5))
-            p = self.sampleMomentum()[:,:,0:Nbeads]
+            p = self.sampleMomentum(Nbeads=Nbeads)
             result = system.equilibrate(0, p, q, evolutionSteps, xi_current, self.potential, kforce[l], False, False)
             logging.info('Finished generating configuration at xi = {0:.4f}.'.format(xi_current))
             q_initial[:,:,l] = q[:,:,0]
@@ -1384,12 +1384,13 @@ class RPMD:
 
         return k_RPMD
     
-    def sampleMomentum(self):
+    def sampleMomentum(self, Nbeads=None):
         """
         Return a pseudo-random sampling of momenta from a Boltzmann 
         distribution at the temperature of interest.
         """
-        return system.sample_momentum(self.mass, self.beta, self.Nbeads)
+        if Nbeads is None: Nbeads = self.Nbeads
+        return system.sample_momentum(self.mass, self.beta, Nbeads)
 
     def getCenterOfMass(self, position):
         """
