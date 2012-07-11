@@ -755,7 +755,7 @@ class RPMD:
             (T0, Nbeads0, xi_current0, dt0, kappa_num0, kappa_denom0, trajectoryCount0,
                 childTrajectories0, equilibrationSteps0, childSamplingSteps0, 
                 childEvolutionSteps0, childrenPerSampling0) = self.loadRecrossingFactor(recrossingFilename)
-            if T0 == self.T and Nbeads0 == self.Nbeads and dt0 == self.dt and abs(xi_current0 - self.xi_current) < 1e-6:
+            if T0 == self.T and Nbeads0 == self.Nbeads and dt0 == self.dt and abs(xi_current0 - self.xi_current) < 1e-4:
                 # We can use the old data
                 logging.info('Including previously saved output in calculation.')
                 kappa_num = kappa_num0
