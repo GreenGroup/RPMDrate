@@ -148,6 +148,7 @@ def loadInputFile(path, T, Nbeads, processes=1):
     label = local_context.get('label', '')
     getPotential = local_context.get('get_potential', None)
     initializePotential = local_context.get('initialize_potential', None)
+    randomSeed = local_context.get('random_seed', None)
     
     if not getPotential:
         errorList.append('No potential energy surface supplied; you must specify a PES via the function get_potential().')
@@ -234,6 +235,7 @@ def loadInputFile(path, T, Nbeads, processes=1):
         thermostat = thermostat,
         processes = processes,
         outputDirectory = os.path.dirname(path),
+        randomSeed = randomSeed,
     )
     for formingBonds, breakingBonds in equivalentTransitionStates:
         system.addEquivalentTransitionState(formingBonds, breakingBonds)

@@ -47,6 +47,27 @@ subroutine random_init()
 
 end subroutine random_init
 
+! Seed the pseudo-random number generator using a particular seed value.
+! Useful for replicating runs.
+subroutine random_init_seed(value)
+    implicit none
+    integer, intent(in) :: value
+    integer, dimension(:), allocatable :: seed
+    integer :: seed_size
+
+    seed_size = 1
+
+    call random_seed(size=seed_size)
+    allocate(seed(seed_size))
+
+    seed(1) = value
+
+    call random_seed(put = seed)
+
+    deallocate(seed)
+
+end subroutine random_init_seed
+
 ! Compute a pseudo-random number uniformly distributed in [0,1].
 ! Returns:
 !   rn - The pseudo-random number
@@ -76,8 +97,8 @@ subroutine randomn(rn)
     if (iset .eq. 0) then
         S = 1.d0
         do while (S .ge. 1.d0 .or. S .eq. 0.d0)
-            call random_number(u)
-            call random_number(v)
+            call random(u)
+            call random(v)
             u = 2.d0 * u - 1.d0
             v = 2.d0 * v - 1.d0
             S = u * u + v * v

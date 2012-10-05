@@ -421,3 +421,23 @@ to compute the value of the bimolecular rate coefficient. If you have only
 done the potential of mean force calculation, you can still use this to
 generate an estimate of the rate coefficient; in this case, a value of unity
 will be assumed for the recrossing factor.
+
+Additional input file options
+=============================
+
+This section discusses additional items you can optionally add to the input
+file to modify how the RPMD calculation is performed. In all cases these items
+are entirely optional.
+
+Define the random number seed
+-----------------------------
+
+If you wish, you can specify a particular integer seed value to use to 
+initialize the random number generator. This is entirely optional, as RPMDrate
+will automatically seed the random number generator (based on the system clock)
+unless this value is provided. To use a particular value, add a line to your
+input file of the form ::
+
+    random_seed = 1
+
+where you replace the value ``1`` with your desired integer seed value.
