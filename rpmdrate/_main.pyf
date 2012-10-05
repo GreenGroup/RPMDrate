@@ -279,6 +279,9 @@ python module _main ! in
         end module reactants
         subroutine random_init ! in :_main:rpmd/_math.f90
         end subroutine random_init
+        subroutine random_init_seed(value) ! in :_main:rpmd/_math.f90
+            double precision intent(in) :: value
+        end subroutine random_init_seed
         subroutine random(rn) ! in :_main:rpmd/_math.f90
             double precision intent(out) :: rn
         end subroutine random
