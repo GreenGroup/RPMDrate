@@ -162,7 +162,7 @@ class RPMD:
     
     """
 
-    def __init__(self, label, T, Nbeads, reactants, transitionState, potential, thermostat, processes=1, outputDirectory='.'):
+    def __init__(self, label, T, Nbeads, reactants, transitionState, potential, thermostat, processes=1, outputDirectory='.', randomSeed=None):
         """
         Initialize an RPMD object. The `mass` of each atom should be given in
         g/mol, while the `Rinf` value should be given in angstroms. (They will
@@ -179,6 +179,7 @@ class RPMD:
         self.thermostat = thermostat
         self.processes = processes
         self.outputDirectory = os.path.abspath(outputDirectory)
+        self.randomSeed = randomSeed
         
         self.beta = 4.35974417e-18 / (constants.kB * self.T)
         self.dt = 0
@@ -362,7 +363,7 @@ class RPMD:
         self.activate(Nbeads)
 
         # Seed the random number generator
-        random_init()
+        self.initializeRandomNumberGenerator()
 
         # Generate initial position using transition state geometry
         # (All beads start at same position)
@@ -470,7 +471,7 @@ class RPMD:
         self.activate()
 
         # Seed the random number generator
-        random_init()
+        self.initializeRandomNumberGenerator()
 
         # Load any previous umbrella sampling trajectories for each window
         for window in windows:
@@ -775,8 +776,8 @@ class RPMD:
             self.activate()
             
             # Seed the random number generator
-            random_init()
-    
+            self.initializeRandomNumberGenerator()
+
             # Generate initial position using transition state geometry
             # (All beads start at same position)
             q0 = numpy.zeros((3,self.Natoms,self.Nbeads), order='F')
@@ -1417,3 +1418,14 @@ class RPMD:
         for j in range(self.Natoms):
             newGeometry[:,j] -= cm
         return newGeometry
+
+    def initializeRandomNumberGenerator(self):
+        """
+        Initialize the random number generator. If a valid value is found in
+        the ``randomSeed`` attribute, that value is used as the seed; otherwise
+        a default value is used.
+        """
+        if self.randomSeed is not None and isinstance(self.randomSeed, int):
+            random_init_seed(self.randomSeed)
+        else:
+            random_init()
