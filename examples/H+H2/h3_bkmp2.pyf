@@ -1,0 +1,17 @@
+python module h3_bkmp2
+    interface
+        subroutine get_potential(q,Natoms,Nbeads,V,dVdq,info) ! in :h3_bkmp2:h3_bkmp2.f
+            integer, intent(in) :: Natoms
+            integer, intent(in) :: Nbeads
+            double precision dimension(1:3,1:Natoms,1:Nbeads), intent(in) :: q
+            double precision dimension(1:Nbeads), intent(out) :: V
+            double precision dimension(1:3,1:Natoms,1:Nbeads), intent(out) :: dVdq
+            integer, intent(out) :: info
+        end subroutine get_potential
+        subroutine pote(r,pe,dpe) ! in :h3_bkmp2:h3_bkmp2.f
+            double precision dimension(3), intent(in) :: r
+            double precision, intent(out) :: pe
+            double precision dimension(3), intent(out) :: dpe
+        end subroutine pote
+    end interface 
+end python module h3_bkmp2

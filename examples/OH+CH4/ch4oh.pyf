@@ -1,0 +1,17 @@
+!    -*- f90 -*-
+! Note: the context of this file is case sensitive.
+
+python module PES ! in 
+    interface  ! in :PES
+        subroutine initialize_potential() ! in :PES:ch4oh.f
+        end subroutine initialize_potential
+        subroutine get_potential(q,Natoms,Nbeads,V,dVdq,info) ! in :PES:ch4oh.f
+            integer, intent(in) :: Natoms
+            integer, intent(in) :: Nbeads
+            double precision dimension(1:3,1:Natoms,1:Nbeads), intent(in) :: q
+            double precision dimension(1:Nbeads), intent(out) :: V
+            double precision dimension(1:3,1:Natoms,1:Nbeads), intent(out) :: dVdq
+            integer, intent(out) :: info
+        end subroutine get_potential
+    end interface 
+end python module PES
