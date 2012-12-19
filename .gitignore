@@ -16,6 +16,9 @@ build/*
 # Compiled documentation
 documentation/_build/*
 
+# Examples
+/examples/
+
 # Eclipse project files
 .project
 .pydevproject
