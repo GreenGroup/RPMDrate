@@ -53,7 +53,7 @@ subroutine random_init_seed(value)
     implicit none
     integer, intent(in) :: value
     integer, dimension(:), allocatable :: seed
-    integer :: n
+    integer :: n, i
 
     call random_seed(size=n)
     allocate(seed(n))
