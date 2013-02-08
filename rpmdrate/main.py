@@ -702,11 +702,18 @@ class RPMD:
         # Set the parameters for the RPMD calculation
         self.dt = dt
         self.kforce = 0.0
-        geometry = self.transitionStates[0].geometry
         self.xi_current = xi_current
         thermostat = self.thermostat
         self.mode = 2
         processes = self.processes
+        
+        # Load the geometry from the closest umbrella configuration
+        for xi, q in self.umbrellaConfigurations:
+            if xi >= xi_current:
+                geometry = q
+                break
+        else:
+            geometry = self.transitionStates[0].geometry
         
         # Initialize parameters used to compute recrossing factor
         kappa_num = numpy.zeros(childEvolutionSteps, order='F')
