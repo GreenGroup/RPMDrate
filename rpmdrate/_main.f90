@@ -264,7 +264,7 @@ contains
         integer :: step, andersen_sampling_steps
 
         result = 0
-        actual_steps = steps
+        actual_steps = 0
 
         av = 0.0d0
         av2 = 0.0d0
@@ -341,6 +341,8 @@ contains
             end if
 
         end do
+
+        actual_steps = steps
 
         ! Clean up GLE thermostat (if turned on)
         if (thermostat .eq. 2) then
