@@ -69,7 +69,7 @@ def runUmbrellaTrajectory(rpmd, xi_current, p, q, equilibrationSteps, evolutionS
         steps += actualSteps
         if result != 0: continue
     
-    return dav, dav2, steps
+    return dav, dav2, steps, p1, q1
 
 def runRecrossingTrajectory(rpmd, xi_current, p, q, evolutionSteps, saveTrajectory):
     """
@@ -132,6 +132,7 @@ class Window:
         self.trajectories = trajectories
         self.equilibrationTime = float(quantity.convertTime(equilibrationTime, "ps")) / 2.418884326505e-5
         self.evolutionTime = float(quantity.convertTime(evolutionTime, "ps")) / 2.418884326505e-5
+        self.q = None
         # The parameters store the results of the sampling
         self.count = 0
         self.av = 0.0
@@ -510,6 +511,15 @@ class RPMD:
                 os.fsync(f.fileno())
                 f.close()
                 
+        # Load initial configuration using results from generateUmbrellaConfigurations()
+        for window in windows:
+            window.q = numpy.empty((3,self.Natoms,self.Nbeads), order='F')
+            for xi, q_initial in self.umbrellaConfigurations:
+                if xi >= window.xi:
+                    break
+            for k in range(self.Nbeads):
+                window.q[:,:,k] = q_initial
+
         # This implementation is breadth-first, as we would rather get some
         # data in all windows than get lots of data in a few windows
         done = False
@@ -532,13 +542,9 @@ class RPMD:
                 
                 done = False
                 
-                # Load initial configuration using results from generateUmbrellaConfigurations()
-                q = numpy.empty((3,self.Natoms,self.Nbeads), order='F')
-                for xi, q_initial in self.umbrellaConfigurations:
-                    if xi >= window.xi:
-                        break
-                for k in range(self.Nbeads):
-                    q[:,:,k] = q_initial
+                # Load initial configuration from last finished trajectory
+                # for this window
+                q = window.q[:,:,:]
                 
                 # Spawn sampling trajectory in this window
                 windowEvolutionSteps = evolutionSteps
@@ -558,9 +564,9 @@ class RPMD:
                     
                 # This line will block until the trajectory finishes
                 if pool:
-                    dav, dav2, dcount = result.get()
+                    dav, dav2, dcount, p, q = result.get()
                 else:
-                    dav, dav2, dcount = result
+                    dav, dav2, dcount, p, q = result
                 
                 # Update the mean and variance with the results from this trajectory
                 # Note that these are counted at each time step in each trajectory
@@ -575,6 +581,10 @@ class RPMD:
                 variance = av2 - av * av
                 if dcount > 0:
                     logging.info('{0:11d} {1:15.8f} {2:15.8f} {3:15.5e}'.format(window.count, av, av2, variance))
+    
+                # Also save the geometry to use as the initial geometry for
+                # the next trajectory in this window
+                window.q = q[:,:,:]
     
                 umbrellaFilename = os.path.join(workingDirectory, 'umbrella_sampling_{0:.4f}.dat'.format(window.xi))
                 f = open(umbrellaFilename, 'a')
