@@ -597,7 +597,7 @@ class RPMD:
                         
         logging.info('')
         
-    def computePotentialOfMeanForce(self, windows, xi_min, xi_max, bins):
+    def computePotentialOfMeanForce(self, windows=None, xi_min=None, xi_max=None, bins=5000):
         """
         Compute the potential of mean force of the system at the given
         temperature by integrating over the given reaction coordinate range
@@ -608,6 +608,31 @@ class RPMD:
         workingDirectory = self.createWorkingDirectory()
         potentialFilename = os.path.join(workingDirectory, 'potential_of_mean_force.dat')
 
+        # If windows is not specified, then try to determine the available
+        # windows by loading from the files in the working directory
+        if windows is None:
+            windows = []
+            for root, dirs, files in os.walk(workingDirectory):
+                for f in files:
+                    if f.startswith('umbrella_sampling_'):
+                        umbrellaFilename = os.path.join(root, f)
+                        logging.info('Loading saved output from {0}'.format(umbrellaFilename))
+                        xi, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename)
+                        if len(av_list) > 0:
+                            window = Window(xi=xi)
+                            window.av += av_list[-1]
+                            window.av2 += av2_list[-1]
+                            window.count += count_list[-1]
+                            windows.append(window)
+            if len(windows) == 0:
+                raise RPMDError('No windows specified to computePotentialOfMeanForce(), and could not determine the available windows from the saved files in the working directory.')
+            windows.sort(key=lambda w: w.xi)
+            
+        # If xi_min and/or xi_max are not given, then default to the entire
+        # range of windows
+        if xi_min is None: xi_min = windows[0].xi
+        if xi_max is None: xi_max = windows[-1].xi
+            
         self.umbrellaWindows = windows
         Nwindows = len(self.umbrellaWindows)
         
