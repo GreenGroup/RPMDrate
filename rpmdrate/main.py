@@ -125,13 +125,19 @@ class Window:
     
     """
     
-    def __init__(self, xi, kforce, trajectories, equilibrationTime, evolutionTime):
+    def __init__(self, xi=None, kforce=None, trajectories=None, equilibrationTime=None, evolutionTime=None):
         # These parameters control the umbrella sampling trajectories
         self.xi = xi
         self.kforce = kforce
         self.trajectories = trajectories
-        self.equilibrationTime = float(quantity.convertTime(equilibrationTime, "ps")) / 2.418884326505e-5
-        self.evolutionTime = float(quantity.convertTime(evolutionTime, "ps")) / 2.418884326505e-5
+        if equilibrationTime is not None:
+            self.equilibrationTime = float(quantity.convertTime(equilibrationTime, "ps")) / 2.418884326505e-5
+        else:
+            self.equilibrationTime = None
+        if evolutionTime is not None:
+            self.evolutionTime = float(quantity.convertTime(evolutionTime, "ps")) / 2.418884326505e-5
+        else:
+            self.evolutionTime = None
         self.q = None
         # The parameters store the results of the sampling
         self.count = 0
@@ -480,7 +486,7 @@ class RPMD:
             if os.path.exists(umbrellaFilename):
                 # Previous trajectories existed, so load them
                 logging.info('Loading saved output for xi = {0:.4f} from {1}'.format(window.xi, umbrellaFilename))
-                xi, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename)
+                xi, kforce, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename)
                 assert abs(xi - window.xi) < 1e-6
                 if len(av_list) > 0:
                     window.av += av_list[-1]
@@ -617,9 +623,9 @@ class RPMD:
                     if f.startswith('umbrella_sampling_'):
                         umbrellaFilename = os.path.join(root, f)
                         logging.info('Loading saved output from {0}'.format(umbrellaFilename))
-                        xi, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename)
+                        xi, kforce, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename)
                         if len(av_list) > 0:
-                            window = Window(xi=xi)
+                            window = Window(xi=xi, kforce=kforce)
                             window.av += av_list[-1]
                             window.av2 += av2_list[-1]
                             window.count += count_list[-1]
@@ -1077,7 +1083,7 @@ class RPMD:
         
         f.close()
         
-        return xi, av_list, av2_list, count_list
+        return xi, kforce, av_list, av2_list, count_list
         
     def savePotentialOfMeanForce(self, path):
         """

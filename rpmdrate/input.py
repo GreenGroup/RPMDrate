@@ -83,7 +83,7 @@ def conductUmbrellaSampling(dt, windows, saveTrajectories=False):
     global jobList
     jobList.append(['umbrella', (dt, windows, saveTrajectories)])
 
-def computePotentialOfMeanForce(windows, xi_min, xi_max, bins):
+def computePotentialOfMeanForce(windows=None, xi_min=None, xi_max=None, bins=5000):
     global jobList
     jobList.append(['PMF', (windows, xi_min, xi_max, bins)])
 
