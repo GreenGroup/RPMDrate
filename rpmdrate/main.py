@@ -53,7 +53,7 @@ class RPMDError(Exception):
 
 ################################################################################
 
-def runUmbrellaTrajectory(rpmd, xi_current, p, q, equilibrationSteps, evolutionSteps, kforce, saveTrajectory):
+def runUmbrellaTrajectory(rpmd, xi_current, p, q, equilibrationSteps, evolutionSteps, kforce, xi_range, saveTrajectory):
     """
     Run an individual umbrella integration trajectory, returning the sum of the
     first and second moments of the reaction coordinate at each time step.
@@ -65,7 +65,7 @@ def runUmbrellaTrajectory(rpmd, xi_current, p, q, equilibrationSteps, evolutionS
         q1 = numpy.asfortranarray(q.copy())
         result = system.equilibrate(0, p1, q1, equilibrationSteps, xi_current, rpmd.potential, kforce, False, saveTrajectory)
         if result != 0: continue
-        dav, dav2, actualSteps, result = system.umbrella_trajectory(0, p1, q1, evolutionSteps - steps, xi_current, rpmd.potential, kforce, saveTrajectory)
+        dav, dav2, actualSteps, result = system.umbrella_trajectory(0, p1, q1, evolutionSteps - steps, xi_current, rpmd.potential, kforce, xi_range, saveTrajectory)
         steps += actualSteps
         if result != 0: continue
     
@@ -117,6 +117,7 @@ class Window:
     `trajectories`              The number of independent sampling trajectories to run for this window
     `equilibrationTime`         The equilibration time (no sampling) in each trajectory
     `evolutionTime`             The evolution time (with sampling) in each trajectory
+    `xi_range`                  The allowed maximum valid range of the reaction coordinate in this window
     --------------------------- ------------------------------------------------
     `count`                     The number of samples taken
     `av`                        The mean of the reaction coordinate times the number of samples
@@ -125,7 +126,7 @@ class Window:
     
     """
     
-    def __init__(self, xi=None, kforce=None, trajectories=None, equilibrationTime=None, evolutionTime=None):
+    def __init__(self, xi=None, kforce=None, trajectories=None, equilibrationTime=None, evolutionTime=None, xi_range=0.0):
         # These parameters control the umbrella sampling trajectories
         self.xi = xi
         self.kforce = kforce
@@ -138,6 +139,7 @@ class Window:
             self.evolutionTime = float(quantity.convertTime(evolutionTime, "ps")) / 2.418884326505e-5
         else:
             self.evolutionTime = None
+        self.xi_range = xi_range
         self.q = None
         # The parameters store the results of the sampling
         self.count = 0
@@ -508,8 +510,11 @@ class RPMD:
                 f.write('Reaction coordinate                     = {0:.4f}\n'.format(window.xi))
                 f.write('Equilibration time                      = {0:g} ps ({1:d} steps)\n'.format(equilibrationSteps * self.dt * 2.418884326505e-5, equilibrationSteps))
                 f.write('Trajectory evolution time               = {0:g} ps ({1:d} steps)\n'.format(evolutionSteps * self.dt * 2.418884326505e-5, evolutionSteps))
-                f.write('Force constant                          = {0:g}\n\n'.format(window.kforce))
-
+                f.write('Force constant                          = {0:g}\n'.format(window.kforce))
+                if window.xi_range:
+                    f.write('Valid reaction coordinate range         = {0:g}\n'.format(window.xi_range))
+                f.write('\n')
+                    
                 f.write('=============== =============== =========== =============== ===============\n')
                 f.write('total av        total av2       count       xi_mean         xi_var\n')
                 f.write('=============== =============== =========== =============== ===============\n')
@@ -557,7 +562,7 @@ class RPMD:
                 windowEquilibrationSteps = equilibrationSteps
                 logging.info('Spawning sampling trajectory at xi = {0:.4f}...'.format(window.xi))
                 p = self.sampleMomentum()
-                args = (self, window.xi, p, q, windowEquilibrationSteps, windowEvolutionSteps, window.kforce, saveTrajectories)
+                args = (self, window.xi, p, q, windowEquilibrationSteps, windowEvolutionSteps, window.kforce, window.xi_range, saveTrajectories)
                 if pool:
                     results.append([window, pool.apply_async(runUmbrellaTrajectory, args)])
                 else:
@@ -1060,6 +1065,8 @@ class RPMD:
                 evolutionSteps = int(data[2][1:])
             elif param == 'Force constant':
                 kforce = float(data[0])
+            elif param == 'Valid reaction coordinate range':
+                xi_range = float(data[0])
             else:
                 raise RPMDError('Invalid umbrella sampling parameter {0!r}.'.format(param))
             line = f.readline()

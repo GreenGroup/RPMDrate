@@ -243,7 +243,7 @@ contains
     end subroutine recrossing_trajectory
 
     subroutine umbrella_trajectory(t, p, q, Natoms, Nbeads, steps, &
-        xi_current, potential, kforce, save_trajectory, av, av2, &
+        xi_current, potential, kforce, xi_range, save_trajectory, av, av2, &
         actual_steps, result)
 
         use transition_state, only: check_for_valid_position, check_values
@@ -252,7 +252,7 @@ contains
         external potential
         integer, intent(in) :: Natoms, Nbeads
         double precision, intent(inout) :: t, p(3,Natoms,Nbeads), q(3,Natoms,Nbeads)
-        double precision, intent(in) :: xi_current, kforce
+        double precision, intent(in) :: xi_current, kforce, xi_range
         integer, intent(in) :: steps
         integer, intent(in) :: save_trajectory
         double precision, intent(out) :: av, av2
@@ -309,6 +309,10 @@ contains
 
             call verlet_step(t, p, q, V, dVdq, xi, dxi, d2xi, Natoms, Nbeads, &
                 xi_current, potential, kforce, 0, result)
+            if (xi_range .ne. 0.0d0 .and. abs(xi - xi_current) > xi_range) then
+                actual_steps = step - 1
+                exit
+            end if
             if (result .ne. 0) then
                 actual_steps = step - 1
                 exit
