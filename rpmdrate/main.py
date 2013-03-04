@@ -895,7 +895,11 @@ class RPMD:
                 # surface and sampling from Andersen thermostat
                 logging.info('Evolving parent trajectory to {0:g} ps...'.format((parentIter+1) * childSamplingSteps * self.dt * 2.418884326505e-5))
                 result = system.equilibrate(0, p, q, childSamplingSteps, self.xi_current, self.potential, 0.0, True, saveParentTrajectory)
-            
+                while result != 0:
+                    q = numpy.asfortranarray(q0.copy())
+                    p = self.sampleMomentum()            
+                    result = system.equilibrate(0, p, q, equilibrationSteps, self.xi_current, self.potential, 0.0, True, saveParentTrajectory)
+                
                 parentIter += 1
             
             logging.info('Finished sampling of {0:d} child trajectories.'.format(childCount))

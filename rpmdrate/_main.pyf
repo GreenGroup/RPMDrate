@@ -100,13 +100,14 @@ python module _main ! in
                 integer, optional,intent(in),check(shape(p,1)==natoms),depend(p) :: natoms=shape(p,1)
                 integer, optional,intent(in),check(shape(p,2)==nbeads),depend(p) :: nbeads=shape(p,2)
             end subroutine free_ring_polymer_step
-            subroutine constrain_to_dividing_surface(p,q,dxi,natoms,nbeads,xi_current) ! in :_main:rpmd/_main.f90:system
+            subroutine constrain_to_dividing_surface(p,q,dxi,natoms,nbeads,xi_current,info) ! in :_main:rpmd/_main.f90:system
                 double precision dimension(3,natoms,nbeads),intent(inout) :: p
                 double precision dimension(3,natoms,nbeads),intent(inout),depend(natoms,nbeads) :: q
                 double precision dimension(3,natoms),intent(inout),depend(natoms) :: dxi
                 integer, optional,intent(in),check(shape(p,1)==natoms),depend(p) :: natoms=shape(p,1)
                 integer, optional,intent(in),check(shape(p,2)==nbeads),depend(p) :: nbeads=shape(p,2)
                 double precision intent(in) :: xi_current
+                integer intent(out) :: info
             end subroutine constrain_to_dividing_surface
             subroutine constrain_momentum_to_dividing_surface(p,dxi,natoms,nbeads) ! in :_main:rpmd/_main.f90:system
                 double precision dimension(3,natoms,nbeads),intent(inout) :: p

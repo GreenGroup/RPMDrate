@@ -427,7 +427,8 @@ contains
 
         ! If constrain is on, the evolution will be constrained to the
         ! transition state dividing surface
-        if (constrain .eq. 1) call constrain_to_dividing_surface(p, q, dxi, Natoms, Nbeads, xi_current)
+        if (constrain .eq. 1) call constrain_to_dividing_surface(p, q, dxi, Natoms, Nbeads, xi_current, result)
+        if (result .ne. 0) return
 
         ! Update reaction coordinate value, gradient, and Hessian
         call get_centroid(q, Natoms, Nbeads, centroid)
@@ -544,7 +545,8 @@ contains
     ! Returns:
     !   p - The constrained momentum of each bead in each atom
     !   q - The constrained position of each bead in each atom
-    subroutine constrain_to_dividing_surface(p, q, dxi, Natoms, Nbeads, xi_current)
+    !   info - 0 if the constraining was successful, 1 if unsuccessful
+    subroutine constrain_to_dividing_surface(p, q, dxi, Natoms, Nbeads, xi_current, info)
 
         implicit none
         integer, intent(in) :: Natoms, Nbeads
@@ -556,6 +558,7 @@ contains
         integer :: i, j, k, maxiter, iter
         double precision :: xi_new, dxi_new(3,Natoms), d2xi_new(3,Natoms,3,Natoms)
         double precision :: mult, sigma, dsigma, dx, coeff
+        integer, intent(out) :: info
 
         call get_centroid(q, Natoms, Nbeads, centroid)
 
@@ -563,6 +566,8 @@ contains
         mult = 0.0d0
 
         qctemp(:,:) = 0.0d0
+
+        info = 0
 
         maxiter = 100
         do iter = 1, maxiter
@@ -590,8 +595,10 @@ contains
             if (dabs(dx) .lt. 1.0d-8 .or. dabs(sigma) .lt. 1.0d-10) exit
 
             if (iter .eq. maxiter) then
-                write (*,fmt='(A)') 'Warning: SHAKE exceeded maximum number of iterations.'
+                write (*,fmt='(A)') 'Error: SHAKE exceeded maximum number of iterations. Restarting trajectory.'
                 write (*,fmt='(A,E13.5,A,E13.5)') 'dx = ', dx, ', sigma = ', sigma
+                info = 1
+                return
             end if
 
         end do
