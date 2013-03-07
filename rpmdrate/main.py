@@ -488,7 +488,7 @@ class RPMD:
             if os.path.exists(umbrellaFilename):
                 # Previous trajectories existed, so load them
                 logging.info('Loading saved output for xi = {0:.4f} from {1}'.format(window.xi, umbrellaFilename))
-                xi, kforce, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename)
+                xi, kforce, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename, xi_range=window.xi_range)
                 assert abs(xi - window.xi) < 1e-6
                 if len(av_list) > 0:
                     window.av += av_list[-1]
@@ -608,7 +608,7 @@ class RPMD:
                         
         logging.info('')
         
-    def computePotentialOfMeanForce(self, windows=None, xi_min=None, xi_max=None, bins=5000):
+    def computePotentialOfMeanForce(self, windows=None, xi_min=None, xi_max=None, bins=5000, xi_range=None):
         """
         Compute the potential of mean force of the system at the given
         temperature by integrating over the given reaction coordinate range
@@ -628,7 +628,7 @@ class RPMD:
                     if f.startswith('umbrella_sampling_'):
                         umbrellaFilename = os.path.join(root, f)
                         logging.info('Loading saved output from {0}'.format(umbrellaFilename))
-                        xi, kforce, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename)
+                        xi, kforce, av_list, av2_list, count_list = self.loadUmbrellaSampling(umbrellaFilename, xi_range=xi_range)
                         if len(av_list) > 0:
                             window = Window(xi=xi, kforce=kforce)
                             window.av += av_list[-1]
@@ -1032,7 +1032,7 @@ class RPMD:
         
         return xi_list, q_list, evolutionSteps
         
-    def loadUmbrellaSampling(self, path):
+    def loadUmbrellaSampling(self, path, xi_range=None):
         """
         Load the results of an umbrella sampling calculation from `path` on
         disk. This can be useful both as a means of postprocessing results
@@ -1083,6 +1083,34 @@ class RPMD:
         line = f.readline()
         while line != '' and len(line) > 8 and line[0:8] != '========':
             av, av2, count, xi_mean, xi_var = line.split()
+            
+            # Some validation checks to ensure that the trajectories are reasonable
+            # These only run if you specified a valid xi_range (either in the
+            # saved file or as a parameter to this function)
+            error = False
+            if xi_range is not None:
+                # 1. If the mean is outside of the window range, then discard
+                if abs(xi - xi_mean) > xi_range:
+                    logging.warning('Invalid umbrella sampling trajectory detected at xi = {0:g}: <xi> of {1:g} is outside the valid range.'.format(xi, xi_mean))
+                    error = True
+                # 2. If the variance jumps significantly, then discard
+                # This occurs when the trajectory jumps to a new region of the
+                # PES which is not a very good fit
+                if len(count_list) > 0:
+                    av2_0 = av2_list[-1] / count_list[-1]
+                    av_0 = av_list[-1] / count_list[-1]
+                    xi_var0 = av2_0 - av_0 * av_0
+                    if abs(math.log10(xi_var) - math.log10(xi_var0)) > 1.0:
+                        logging.warning('Invalid umbrella sampling trajectory detected at xi = {0:g}: large jump in variance from {1:g} to {2:g}.'.format(xi, xi_var0, xi_var))
+                        error = True
+                if error:
+                    if len(count_list) == 0:
+                        raise RPMDError('No valid trajectories found for xi = {0:g}; please delete the invalid trajectories and re-run RPMDrate.'.format(xi))
+                    else:
+                        logging.warning('Discarding trajectories above steps {0:d}; consider deleting these trajectories and re-running RPMDrate.'.format(count_list[-1]))
+                    break
+            
+            # If valid, then append them to the list and continue
             av_list.append(float(av))
             av2_list.append(float(av2))
             count_list.append(int(count))
