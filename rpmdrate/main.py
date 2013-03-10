@@ -1321,7 +1321,7 @@ class RPMD:
             childTrajectories, equilibrationSteps, childSamplingSteps, 
             childEvolutionSteps, childrenPerSampling)
     
-    def saveRateCoefficient(self, path, k_QTST_s0, staticFactor, k_QTST, recrossingFactor, k_RPMD):
+    def saveRateCoefficient(self, path, k_QTST_s0, staticFactor, xi_current, k_QTST, recrossingFactor, k_RPMD):
         """
         Save the results of a rate coefficient calculation to `path` on disk.
         This serves as both a record of the calculation and a means of
@@ -1345,7 +1345,7 @@ class RPMD:
         
         f.write('Static factor                           = {0:g}\n\n'.format(staticFactor))
         
-        f.write('Maximum reaction coordinate (xi_max)    = {0:.6f}\n\n'.format(self.xi_current))
+        f.write('Maximum reaction coordinate (xi_max)    = {0:.6f}\n\n'.format(xi_current))
 
         f.write('k_QTST(T;xi_max)                        = {0:g} cm^3/(molecule*s)\n'.format(k_QTST * fromAtomicUnits))
         f.write('                                        = {0:g} cm^3/(mol*s)\n\n'.format(k_QTST * fromAtomicUnits * constants.Na))
@@ -1437,7 +1437,7 @@ class RPMD:
         
         # Set up output files and directory
         workingDirectory = self.createWorkingDirectory()
-        rateFilename = os.path.join(workingDirectory, 'rate_coefficient_{0:.4f}.dat'.format(self.xi_current))
+        rateFilename = os.path.join(workingDirectory, 'rate_coefficient_{0:.4f}.dat'.format(xi_current))
 
         # Compute the rate coefficient using the reactant dividing surface
         Rinf = self.reactants.Rinf
@@ -1468,7 +1468,7 @@ class RPMD:
         logging.info('Final value of rate coefficient = {0:g} cm^3/(mol*s)'.format(k_RPMD * fromAtomicUnits))
         logging.info('')
 
-        self.saveRateCoefficient(rateFilename, k_QTST_s0, staticFactor, k_QTST, recrossingFactor, k_RPMD)
+        self.saveRateCoefficient(rateFilename, k_QTST_s0, staticFactor, xi_current, k_QTST, recrossingFactor, k_RPMD)
 
         return k_RPMD
     
