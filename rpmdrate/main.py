@@ -126,7 +126,7 @@ class Window:
     
     """
     
-    def __init__(self, xi=None, kforce=None, trajectories=None, equilibrationTime=None, evolutionTime=None, xi_range=0.0):
+    def __init__(self, xi=None, kforce=None, trajectories=None, equilibrationTime=None, evolutionTime=None, xi_range=None):
         # These parameters control the umbrella sampling trajectories
         self.xi = xi
         self.kforce = kforce
@@ -1082,7 +1082,7 @@ class RPMD:
         line = f.readline()
         line = f.readline()
         while line != '' and len(line) > 8 and line[0:8] != '========':
-            av, av2, count, xi_mean, xi_var = line.split()
+            av, av2, count, xi_mean, xi_var = [float(value) for value in line.split()]
             
             # Some validation checks to ensure that the trajectories are reasonable
             # These only run if you specified a valid xi_range (either in the
