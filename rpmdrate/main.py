@@ -58,6 +58,7 @@ def runUmbrellaTrajectory(rpmd, xi_current, p, q, equilibrationSteps, evolutionS
     Run an individual umbrella integration trajectory, returning the sum of the
     first and second moments of the reaction coordinate at each time step.
     """
+    if xi_range is None: xi_range = 0.0
     rpmd.activate()
     steps = 0
     while steps < evolutionSteps:
