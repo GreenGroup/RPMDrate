@@ -580,6 +580,17 @@ class RPMD:
                 else:
                     dav, dav2, dcount, p, q = result
                 
+                if window.count > 0 and dcount > 0:
+                    av = window.av / window.count
+                    av2 = window.av2 / window.count
+                    variance0 = av2 - av * av
+                    av = (window.av + dav) / (window.count + dcount)
+                    av2 = (window.av2 + dav2) / (window.count + dcount)
+                    variance = av2 - av * av
+                    if abs(math.log10(variance) - math.log10(variance0)) > 0.5:
+                        logging.warning('Discarding invalid umbrella sampling trajectory detected at xi = {0:g}: large jump in variance from {1:g} to {2:g}.'.format(xi, xi_var0, xi_var))
+                        continue
+                
                 # Update the mean and variance with the results from this trajectory
                 # Note that these are counted at each time step in each trajectory
                 window.av += dav
@@ -1101,7 +1112,7 @@ class RPMD:
                     av2_0 = av2_list[-1] / count_list[-1]
                     av_0 = av_list[-1] / count_list[-1]
                     xi_var0 = av2_0 - av_0 * av_0
-                    if abs(math.log10(xi_var) - math.log10(xi_var0)) > 1.0:
+                    if abs(math.log10(xi_var) - math.log10(xi_var0)) > 0.5:
                         logging.warning('Invalid umbrella sampling trajectory detected at xi = {0:g}: large jump in variance from {1:g} to {2:g}.'.format(xi, xi_var0, xi_var))
                         error = True
                 if error:
